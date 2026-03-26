@@ -37,7 +37,7 @@ export function sensitivityPreFilter(capture: RawCapture): FilterResult {
   if (matchesTitlePattern(subject)) {
     return {
       action: 'block',
-      reason: `title matched block pattern: ${subject}`,
+      reason: `title pattern match`,
       layer: 2,
     };
   }
