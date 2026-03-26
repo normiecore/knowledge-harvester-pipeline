@@ -44,7 +44,7 @@ export async function engramRoutes(
     return await muninnClient.read(VM.personalVault(user.userId), id);
   });
 
-  app.patch('/api/engrams/:id', async (req) => {
+  app.patch('/api/engrams/:id', async (req, reply) => {
     const user = (req as any).user;
     const { id } = req.params as { id: string };
     const { approval_status, department } = req.body as {
@@ -57,6 +57,7 @@ export async function engramRoutes(
     const engram = JSON.parse(existing.content);
 
     if (engram.user_id !== user.userId) {
+      reply.code(403);
       return { error: 'Forbidden' };
     }
 
