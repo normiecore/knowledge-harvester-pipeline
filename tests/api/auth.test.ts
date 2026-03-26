@@ -1,38 +1,48 @@
 import { describe, it, expect } from 'vitest';
-import { extractUserId } from '../../src/api/auth.js';
+import jwt from 'jsonwebtoken';
+import { createAuthVerifier } from '../../src/api/auth.js';
 
-function makeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig = 'fake-signature';
-  return `${header}.${body}.${sig}`;
+const DEV_SECRET = 'test-secret-key';
+
+function makeDevToken(payload: Record<string, unknown>): string {
+  return jwt.sign(payload, DEV_SECRET, { algorithm: 'HS256' });
 }
 
-describe('extractUserId', () => {
-  it('extracts user ID from valid JWT payload', () => {
-    const token = makeJwt({ oid: 'user-123', preferred_username: 'alice@contoso.com' });
-    const result = extractUserId(`Bearer ${token}`);
-    expect(result.userId).toBe('user-123');
-    expect(result.userEmail).toBe('alice@contoso.com');
+describe('auth - dev mode', () => {
+  const verify = createAuthVerifier({ mode: 'dev', devSecret: DEV_SECRET });
+
+  it('verifies a valid dev token', async () => {
+    const token = makeDevToken({ oid: 'user-abc', preferred_username: 'james@example.com' });
+    const user = await verify(token);
+    expect(user.userId).toBe('user-abc');
+    expect(user.userEmail).toBe('james@example.com');
   });
 
-  it('falls back to upn when preferred_username is missing', () => {
-    const token = makeJwt({ oid: 'user-456', upn: 'bob@contoso.com' });
-    const result = extractUserId(token);
-    expect(result.userId).toBe('user-456');
-    expect(result.userEmail).toBe('bob@contoso.com');
+  it('rejects token signed with wrong secret', async () => {
+    const token = jwt.sign({ oid: 'user-abc' }, 'wrong-secret');
+    await expect(verify(token)).rejects.toThrow();
   });
 
-  it('throws on missing oid claim', () => {
-    const token = makeJwt({ preferred_username: 'alice@contoso.com' });
-    expect(() => extractUserId(token)).toThrow('Missing oid claim');
+  it('rejects expired token', async () => {
+    const token = jwt.sign({ oid: 'user-abc', exp: Math.floor(Date.now() / 1000) - 60 }, DEV_SECRET);
+    await expect(verify(token)).rejects.toThrow();
   });
 
-  it('throws on malformed token (not 3 parts)', () => {
-    expect(() => extractUserId('not-a-jwt')).toThrow('Malformed JWT');
+  it('rejects token without oid claim', async () => {
+    const token = makeDevToken({ preferred_username: 'james@example.com' });
+    await expect(verify(token)).rejects.toThrow('Missing oid');
   });
 
-  it('throws on invalid base64 payload', () => {
-    expect(() => extractUserId('a.!!!.c')).toThrow('Invalid JWT payload');
+  it('handles Bearer prefix', async () => {
+    const token = makeDevToken({ oid: 'user-abc', preferred_username: 'j@e.com' });
+    const user = await verify(`Bearer ${token}`);
+    expect(user.userId).toBe('user-abc');
+  });
+});
+
+describe('auth - azure mode', () => {
+  it('creates verifier without throwing', () => {
+    const verify = createAuthVerifier({ mode: 'azure', azureAdAudience: 'api://test', azureTenantId: 'tenant-123' });
+    expect(verify).toBeTypeOf('function');
   });
 });
