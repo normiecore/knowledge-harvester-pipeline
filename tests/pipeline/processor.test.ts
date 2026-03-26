@@ -8,6 +8,7 @@ describe('PipelineProcessor', () => {
   let mockDeduplicator: any;
   let mockVaultManager: any;
   let mockNatsPublish: ReturnType<typeof vi.fn>;
+  let mockEngramIndex: any;
 
   const capture: RawCapture = {
     id: 'cap-1', userId: 'user-abc', userEmail: 'james@example.com',
@@ -22,7 +23,8 @@ describe('PipelineProcessor', () => {
     mockDeduplicator = { isDuplicate: vi.fn().mockReturnValue(false) };
     mockVaultManager = { storePending: vi.fn().mockResolvedValue(undefined) };
     mockNatsPublish = vi.fn();
-    processor = new PipelineProcessor(mockExtractor, mockDeduplicator, mockVaultManager, mockNatsPublish);
+    mockEngramIndex = { upsert: vi.fn() };
+    processor = new PipelineProcessor(mockExtractor, mockDeduplicator, mockVaultManager, mockNatsPublish, mockEngramIndex);
   });
 
   it('processes safe capture end-to-end', async () => {
@@ -30,6 +32,10 @@ describe('PipelineProcessor', () => {
     expect(result.action).toBe('stored');
     expect(mockVaultManager.storePending).toHaveBeenCalledTimes(1);
     expect(mockNatsPublish).toHaveBeenCalledTimes(1);
+    expect(mockEngramIndex.upsert).toHaveBeenCalledTimes(1);
+    expect(mockEngramIndex.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'cap-1', userId: 'user-abc', approvalStatus: 'pending' }),
+    );
   });
 
   it('blocks sensitive content at pre-filter', async () => {

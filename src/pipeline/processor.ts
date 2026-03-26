@@ -3,6 +3,7 @@ import { buildEngram } from './engram-builder.js';
 import type { Extractor } from './extractor.js';
 import type { Deduplicator } from './deduplicator.js';
 import type { VaultManager } from '../storage/vault-manager.js';
+import type { EngramIndex } from '../storage/engram-index.js';
 import type { RawCapture } from '../types.js';
 import { topicForUser } from '../queue/topics.js';
 
@@ -17,6 +18,7 @@ export class PipelineProcessor {
     private deduplicator: Deduplicator,
     private vaultManager: VaultManager,
     private publishToNats: (topic: string, data: unknown) => void,
+    private engramIndex?: EngramIndex,
   ) {}
 
   async process(capture: RawCapture): Promise<ProcessResult> {
@@ -42,6 +44,19 @@ export class PipelineProcessor {
     // Stage 5: Build engram and store
     const engram = buildEngram(capture, extraction);
     await this.vaultManager.storePending(engram);
+
+    // Update local index so the API can query pending engrams
+    if (this.engramIndex) {
+      this.engramIndex.upsert({
+        id: capture.id,
+        userId: capture.userId,
+        concept: engram.concept,
+        approvalStatus: engram.approval_status,
+        capturedAt: engram.captured_at,
+        sourceType: engram.source_type,
+        confidence: engram.confidence,
+      });
+    }
 
     // Stage 6: Notify
     this.publishToNats(topicForUser(capture.userId), engram);

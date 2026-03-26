@@ -53,6 +53,7 @@ async function main(): Promise<void> {
     deduplicator,
     vaultManager,
     (topic, data) => nats.publish(topic, data),
+    engramIndex,
   );
 
   // Subscribe to raw captures on NATS
