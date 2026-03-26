@@ -47,4 +47,6 @@ ENV HF_HOME=/data/huggingface
 
 EXPOSE 3001 4222 8000
 
-CMD ["/app/start.sh"]
+# Override vLLM's default entrypoint — we manage all services via start.sh
+ENTRYPOINT []
+CMD ["/bin/bash", "/app/start.sh"]

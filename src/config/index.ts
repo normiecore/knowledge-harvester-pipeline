@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 const ConfigSchema = z.object({
   azure: z.object({
-    tenantId: z.string().min(1),
-    clientId: z.string().min(1),
-    clientSecret: z.string().min(1),
+    tenantId: z.string().default(''),
+    clientId: z.string().default(''),
+    clientSecret: z.string().default(''),
   }),
   auth: z.object({
     mode: z.enum(['dev', 'azure']),

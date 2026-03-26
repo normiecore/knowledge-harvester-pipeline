@@ -35,9 +35,18 @@ describe('loadConfig', () => {
   });
 
   it('throws on missing required field', () => {
-    Object.assign(process.env, { ...VALID_ENV, AZURE_TENANT_ID: undefined });
-    delete process.env.AZURE_TENANT_ID;
+    Object.assign(process.env, { ...VALID_ENV, MUNINNDB_API_KEY: undefined });
+    delete process.env.MUNINNDB_API_KEY;
     expect(() => loadConfig()).toThrow();
+  });
+
+  it('defaults azure creds to empty string when not set', () => {
+    const env = { ...VALID_ENV } as Record<string, string | undefined>;
+    delete env.AZURE_TENANT_ID;
+    Object.assign(process.env, env);
+    delete process.env.AZURE_TENANT_ID;
+    const config = loadConfig();
+    expect(config.azure.tenantId).toBe('');
   });
 
   it('uses defaults for optional numeric fields', () => {
