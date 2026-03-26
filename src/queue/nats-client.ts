@@ -38,8 +38,12 @@ export class NatsClient {
     const sub = this.connection.subscribe(topic);
     (async () => {
       for await (const msg of sub) {
-        const parsed: unknown = JSON.parse(sc.decode(msg.data));
-        await handler(parsed);
+        try {
+          const parsed: unknown = JSON.parse(sc.decode(msg.data));
+          await handler(parsed);
+        } catch (err) {
+          console.error(`Error processing message on topic "${topic}":`, err);
+        }
       }
     })();
     return sub;
