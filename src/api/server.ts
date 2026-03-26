@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
-import { extractUserId } from './auth.js';
+import type { AuthVerifier } from './auth.js';
 import { engramRoutes } from './routes/engrams.js';
 import { statsRoutes } from './routes/stats.js';
 import type { MuninnDBClient } from '../storage/muninndb-client.js';
@@ -13,6 +13,7 @@ export interface ServerDeps {
   vaultManager: VaultManager;
   engramIndex: EngramIndex;
   wsManager: WebSocketManager;
+  authVerifier: AuthVerifier;
 }
 
 export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -36,7 +37,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     }
 
     try {
-      (req as any).user = extractUserId(authHeader);
+      (req as any).user = await deps.authVerifier(authHeader);
     } catch (err: any) {
       reply.code(401).send({ error: err.message });
     }
@@ -54,7 +55,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
 
   // WebSocket endpoint
-  app.get('/ws/engrams', { websocket: true }, (socket, req) => {
+  app.get('/ws/engrams', { websocket: true }, async (socket, req) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       socket.close(4001, 'Missing authorization');
@@ -62,7 +63,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     }
 
     try {
-      const user = extractUserId(authHeader);
+      const user = await deps.authVerifier(authHeader);
       deps.wsManager.addConnection(user.userId, socket);
 
       socket.on('close', () => {

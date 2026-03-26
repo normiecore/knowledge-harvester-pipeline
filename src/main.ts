@@ -13,6 +13,7 @@ import { VaultManager } from './storage/vault-manager.js';
 import { EngramIndex } from './storage/engram-index.js';
 import { WebSocketManager } from './api/ws.js';
 import { createServer } from './api/server.js';
+import { createAuthVerifier } from './api/auth.js';
 import { RawCaptureSchema } from './types.js';
 import OpenAI from 'openai';
 
@@ -90,12 +91,21 @@ async function main(): Promise<void> {
     }
   }, config.pollIntervalMs);
 
+  // Auth verifier
+  const authVerifier = createAuthVerifier({
+    mode: config.auth.mode,
+    devSecret: config.auth.devSecret,
+    azureAdAudience: config.auth.azureAdAudience,
+    azureTenantId: config.azure.tenantId,
+  });
+
   // Fastify server
   const server = await createServer({
     muninnClient,
     vaultManager,
     engramIndex,
     wsManager,
+    authVerifier,
   });
 
   await server.listen({ port: 3001, host: '0.0.0.0' });
