@@ -17,6 +17,7 @@ import { WebSocketManager } from './api/ws.js';
 import { createServer } from './api/server.js';
 import { createAuthVerifier } from './api/auth.js';
 import { RawCaptureSchema } from './types.js';
+import { rebuildIndex } from './storage/rebuild-index.js';
 import type { GraphUser } from './ingestion/graph-types.js';
 import OpenAI from 'openai';
 
@@ -47,6 +48,28 @@ async function main(): Promise<void> {
   // MuninnDB + VaultManager
   const muninnClient = new MuninnDBClient(config.muninndb.url, config.muninndb.apiKey);
   const vaultManager = new VaultManager(muninnClient);
+
+  // Rebuild local index from MuninnDB on startup if requested.
+  // Set REBUILD_INDEX=1 or pass --rebuild-index to force a full resync.
+  const shouldRebuild =
+    process.env.REBUILD_INDEX === '1' || process.argv.includes('--rebuild-index');
+  if (shouldRebuild) {
+    console.log('Rebuilding local engram index from MuninnDB...');
+    try {
+      // Fetch user list from Graph API to know which vaults to sync
+      const usersResponse = await graphClient
+        .api('/users')
+        .select('id')
+        .top(999)
+        .get();
+      const userIds: string[] = (usersResponse.value ?? []).map((u: { id: string }) => u.id);
+
+      const result = await rebuildIndex(muninnClient, engramIndex, userIds);
+      console.log(`Index rebuild complete: ${result.synced} synced, ${result.errors} errors`);
+    } catch (err) {
+      console.warn('Index rebuild failed (continuing with existing index):', err);
+    }
+  }
 
   // WebSocket manager
   const wsManager = new WebSocketManager();

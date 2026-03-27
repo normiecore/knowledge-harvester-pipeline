@@ -50,21 +50,30 @@ export class PipelineProcessor {
       return { action: 'blocked', reason: `llm: ${extraction.sensitivity.reasoning}` };
     }
 
-    // Stage 5: Build engram and store
+    // Stage 5: Build engram and store (MuninnDB is source of truth, write there first)
     const engram = buildEngram(capture, extraction);
     await this.vaultManager.storePending(engram);
 
-    // Update local index so the API can query pending engrams
+    // Update local index so the API can query pending engrams.
+    // If this fails, log a warning but don't fail the pipeline --
+    // the index is a cache and can be rebuilt from MuninnDB.
     if (this.engramIndex) {
-      this.engramIndex.upsert({
-        id: capture.id,
-        userId: capture.userId,
-        concept: engram.concept,
-        approvalStatus: engram.approval_status,
-        capturedAt: engram.captured_at,
-        sourceType: engram.source_type,
-        confidence: engram.confidence,
-      });
+      try {
+        this.engramIndex.upsert({
+          id: capture.id,
+          userId: capture.userId,
+          concept: engram.concept,
+          approvalStatus: engram.approval_status,
+          capturedAt: engram.captured_at,
+          sourceType: engram.source_type,
+          confidence: engram.confidence,
+        });
+      } catch (indexErr) {
+        console.warn(
+          `Local index upsert failed for capture ${capture.id} (MuninnDB write succeeded, index can be rebuilt):`,
+          indexErr,
+        );
+      }
     }
 
     // Stage 6: Notify

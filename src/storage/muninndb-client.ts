@@ -50,4 +50,27 @@ export class MuninnDBClient {
   ): Promise<{ id: string; concept: string; content: string }> {
     return this.request('/read', { vault, id });
   }
+
+  /**
+   * List all engrams in a vault. Uses recall with a broad context
+   * and paginates to retrieve everything available.
+   */
+  async listAll(
+    vault: string,
+  ): Promise<Array<{ id: string; concept: string; content: string }>> {
+    // Recall with broad context to get all engram IDs
+    const result = await this.recall(vault, '*');
+    const engrams: Array<{ id: string; concept: string; content: string }> = [];
+
+    for (const entry of result.engrams) {
+      try {
+        const full = await this.read(vault, entry.id);
+        engrams.push(full);
+      } catch (err) {
+        console.warn(`Failed to read engram ${entry.id} from vault ${vault}:`, err);
+      }
+    }
+
+    return engrams;
+  }
 }

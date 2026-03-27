@@ -26,10 +26,12 @@ export class VaultManager {
 
   /**
    * Store a pending engram in the user's personal vault only.
+   * Returns the MuninnDB-assigned engram ID.
    */
-  async storePending(engram: HarvesterEngram): Promise<void> {
+  async storePending(engram: HarvesterEngram): Promise<string> {
     const vault = VaultManager.personalVault(engram.user_id);
-    await this.client.remember(vault, engram.concept, JSON.stringify(engram));
+    const result = await this.client.remember(vault, engram.concept, JSON.stringify(engram));
+    return result.id;
   }
 
   /**
