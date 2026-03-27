@@ -6,6 +6,7 @@ import type {
   GraphDeltaResponse,
   GraphMessage,
   GraphChatMessage,
+  GraphCalendarEvent,
   GraphDriveItem,
 } from './graph-types.js';
 import { retryWithBackoff, RetryableError } from './graph-retry.js';
@@ -113,6 +114,48 @@ export class GraphPoller {
 
     if (deltaLink) {
       this.deltaStore.setDeltaLink(userId, 'teams', deltaLink);
+    }
+  }
+
+  async pollCalendar(userId: string, userEmail: string): Promise<void> {
+    let url: string | undefined =
+      this.deltaStore.getDeltaLink(userId, 'calendar') ??
+      `/users/${userId}/events/delta`;
+    let deltaLink: string | undefined;
+
+    while (url) {
+      const response: GraphDeltaResponse<GraphCalendarEvent> =
+        await this.fetchWithRetry(url);
+
+      for (const event of response.value) {
+        const capture: RawCapture = {
+          id: randomUUID(),
+          userId,
+          userEmail,
+          sourceType: 'graph_calendar',
+          sourceApp: 'outlook_calendar',
+          capturedAt: event.start.dateTime,
+          rawContent: JSON.stringify({
+            subject: event.subject,
+            bodyPreview: event.bodyPreview,
+            start: event.start,
+            end: event.end,
+            location: event.location?.displayName,
+            organizer: event.organizer?.emailAddress,
+            attendees: event.attendees?.map((a) => a.emailAddress.name),
+            isAllDay: event.isAllDay,
+          }),
+          metadata: { eventId: event.id },
+        };
+        this.publish(capture);
+      }
+
+      deltaLink = response['@odata.deltaLink'];
+      url = response['@odata.nextLink'];
+    }
+
+    if (deltaLink) {
+      this.deltaStore.setDeltaLink(userId, 'calendar', deltaLink);
     }
   }
 

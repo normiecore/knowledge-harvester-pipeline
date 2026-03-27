@@ -38,6 +38,18 @@ export interface GraphChatMessage {
   channelIdentity?: { teamId: string; channelId: string };
 }
 
+export interface GraphCalendarEvent {
+  id: string;
+  subject: string;
+  bodyPreview: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  location?: { displayName: string };
+  organizer?: { emailAddress: { name: string; address: string } };
+  attendees?: Array<{ emailAddress: { name: string; address: string }; type: string }>;
+  isAllDay?: boolean;
+}
+
 export interface GraphDriveItem {
   id: string;
   name: string;
