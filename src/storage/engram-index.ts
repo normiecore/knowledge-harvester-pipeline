@@ -137,6 +137,19 @@ export class EngramIndex {
     ).run(status, id);
   }
 
+  /**
+   * Delete dismissed engrams whose `updated_at` is older than the given number of days.
+   * Returns the count of purged rows.
+   */
+  purgeOlderThan(days: number): number {
+    const result = this.db.prepare(
+      `DELETE FROM engram_index
+       WHERE approval_status = 'dismissed'
+         AND updated_at <= datetime('now', ?)`,
+    ).run(`-${days} days`);
+    return result.changes;
+  }
+
   close(): void {
     this.db.close();
   }

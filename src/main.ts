@@ -184,6 +184,24 @@ async function main(): Promise<void> {
     }
   }, config.pollIntervalMs);
 
+  // Purge dismissed engrams older than 30 days — run on startup, then every 24h
+  const PURGE_DISMISSED_DAYS = 30;
+  const PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+  const runPurge = () => {
+    try {
+      const purged = engramIndex.purgeOlderThan(PURGE_DISMISSED_DAYS);
+      if (purged > 0) {
+        console.log(`Purged ${purged} dismissed engram(s) older than ${PURGE_DISMISSED_DAYS} days`);
+      }
+    } catch (err) {
+      console.error('Failed to purge dismissed engrams:', err);
+    }
+  };
+
+  runPurge();
+  const purgeInterval = setInterval(runPurge, PURGE_INTERVAL_MS);
+
   // Auth verifier
   const authVerifier = createAuthVerifier({
     mode: config.auth.mode,
@@ -214,6 +232,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     console.log('Shutting down...');
     clearInterval(pollInterval);
+    clearInterval(purgeInterval);
     await server.close();
     await nats.disconnect();
     deltaStore.close();
