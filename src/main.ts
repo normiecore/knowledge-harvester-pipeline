@@ -25,6 +25,7 @@ import { UserCache } from './ingestion/user-cache.js';
 import { DeadLetterStore } from './storage/dead-letter-store.js';
 import { UserStore } from './storage/user-store.js';
 import { AuditStore } from './storage/audit-store.js';
+import { SettingsStore } from './storage/settings-store.js';
 import OpenAI from 'openai';
 import type { Client } from '@microsoft/microsoft-graph-client';
 
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
   const deadLetterStore = new DeadLetterStore('dead-letter.db');
   const userStore = new UserStore('user-store.db');
   const auditStore = new AuditStore('audit.db');
+  const settingsStore = new SettingsStore('settings.db');
 
   // MuninnDB + VaultManager
   const muninnClient = new MuninnDBClient(config.muninndb.url, config.muninndb.apiKey);
@@ -137,6 +139,7 @@ async function main(): Promise<void> {
     limiter,
     metrics,
     ocrClient,
+    settingsStore,
   );
 
   // Subscribe to raw captures on NATS
@@ -295,6 +298,7 @@ async function main(): Promise<void> {
     deadLetterStore,
     userStore,
     auditStore,
+    settingsStore,
     config: {
       llmBaseUrl: config.llm.baseUrl,
       muninndbUrl: config.muninndb.url,
@@ -318,6 +322,7 @@ async function main(): Promise<void> {
     deadLetterStore.close();
     userStore.close();
     auditStore.close();
+    settingsStore.close();
     metrics.close();
     logger.info('Shutdown complete');
     process.exit(0);

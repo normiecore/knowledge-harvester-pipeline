@@ -203,4 +203,69 @@ export async function engramRoutes(
 
     return { status: 'ok', approval_status };
   });
+
+  app.post('/api/engrams/bulk', async (req, reply) => {
+    const user = (req as any).user;
+    const { ids, action } = req.body as {
+      ids: string[];
+      action: 'approve' | 'dismiss';
+    };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      reply.code(400);
+      return { error: 'ids must be a non-empty array' };
+    }
+
+    if (action !== 'approve' && action !== 'dismiss') {
+      reply.code(400);
+      return { error: 'action must be "approve" or "dismiss"' };
+    }
+
+    const approvalStatus = action === 'approve' ? 'approved' : 'dismissed';
+    let processed = 0;
+    let failed = 0;
+
+    for (const id of ids) {
+      try {
+        const vault = VM.personalVault(user.userId);
+        const existing = await muninnClient.read(vault, id);
+        const engram = JSON.parse(existing.content);
+
+        if (engram.user_id !== user.userId) {
+          failed++;
+          continue;
+        }
+
+        engram.approval_status = approvalStatus;
+        engram.approved_at = new Date().toISOString();
+        engram.approved_by = user.userId;
+
+        engramIndex.updateStatus(id, approvalStatus);
+
+        if (approvalStatus === 'approved') {
+          const department = userCache?.getDepartment(user.userId) ?? 'unassigned';
+          await vaultManager.storeApproved(engram, department);
+        } else {
+          await muninnClient.remember(vault, existing.concept, JSON.stringify(engram));
+        }
+
+        wsManager.notify(user.userId, { type: 'engram_updated', id, status: approvalStatus });
+
+        auditStore?.log({
+          userId: user.userId,
+          action: approvalStatus === 'approved' ? 'engram.approve' : 'engram.dismiss',
+          resourceType: 'engram',
+          resourceId: id,
+          details: JSON.stringify({ approval_status: approvalStatus, bulk: true }),
+          ipAddress: req.ip,
+        });
+
+        processed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { processed, failed };
+  });
 }

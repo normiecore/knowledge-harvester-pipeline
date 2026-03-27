@@ -11,7 +11,9 @@ const NAV_ITEMS = [
   { to: '/search', label: 'Search', icon: '\u2315' },
   { to: '/health', label: 'Health', icon: '\u2665' },
   { to: '/users', label: 'Users', icon: '\u263A' },
+  { to: '/vaults', label: 'Vaults', icon: '\u2302' },
   { to: '/dead-letters', label: 'Dead Letters', icon: '\u26A0' },
+  { to: '/settings', label: 'Settings', icon: '\u2699' },
   { to: '/audit', label: 'Audit Log', icon: '\u2691' },
 ];
 

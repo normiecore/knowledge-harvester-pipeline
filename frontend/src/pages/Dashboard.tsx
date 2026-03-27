@@ -5,6 +5,7 @@ import {
   getAnalyticsSources,
   getAnalyticsTopTags,
   getAnalyticsConfidence,
+  getDigest,
 } from '../api';
 
 interface OverviewData {
@@ -44,12 +45,28 @@ interface ConfidenceEntry {
   count: number;
 }
 
+interface DigestData {
+  period: string;
+  from: string;
+  to: string;
+  newEngrams: number;
+  topTags: Array<{ tag: string; count: number }>;
+  highlights: Array<{
+    concept: string;
+    confidence: number;
+    sourceType: string;
+    capturedAt: string;
+  }>;
+  sourcesBreakdown: Array<{ source: string; count: number }>;
+}
+
 export default function Dashboard() {
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [volume, setVolume] = useState<VolumeEntry[]>([]);
   const [sources, setSources] = useState<SourceEntry[]>([]);
   const [tags, setTags] = useState<TagEntry[]>([]);
   const [confidence, setConfidence] = useState<ConfidenceEntry[]>([]);
+  const [digest, setDigest] = useState<DigestData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,13 +79,15 @@ export default function Dashboard() {
       getAnalyticsSources(),
       getAnalyticsTopTags(20),
       getAnalyticsConfidence(),
+      getDigest('weekly').catch(() => null),
     ])
-      .then(([ov, vol, src, tg, conf]) => {
+      .then(([ov, vol, src, tg, conf, dig]) => {
         setOverview(ov);
         setVolume(vol.volume);
         setSources(src.sources);
         setTags(tg.tags);
         setConfidence(conf.distribution);
+        setDigest(dig);
       })
       .catch((err) => setError(err?.message || 'Failed to load analytics'))
       .finally(() => setLoading(false));
@@ -280,6 +299,52 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Weekly Digest */}
+      {digest && (
+        <div className="dash-card dash-digest-card">
+          <h3 className="dash-card-title">Weekly Digest</h3>
+          <div className="digest-stat-row">
+            <div className="digest-stat">
+              <span className="digest-stat-value">{digest.newEngrams}</span>
+              <span className="digest-stat-label">New Engrams</span>
+            </div>
+            <div className="digest-stat">
+              <span className="digest-stat-value">{digest.sourcesBreakdown.length}</span>
+              <span className="digest-stat-label">Sources</span>
+            </div>
+          </div>
+
+          {digest.topTags.length > 0 && (
+            <div className="digest-section">
+              <span className="digest-section-label">Top Tags</span>
+              <div className="digest-chips">
+                {digest.topTags.slice(0, 5).map((t) => (
+                  <span className="tag tag-sm" key={t.tag}>
+                    {t.tag} <span className="dash-tag-count">{t.count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {digest.highlights.length > 0 && (
+            <div className="digest-section">
+              <span className="digest-section-label">Top Highlights</span>
+              <div className="digest-highlights">
+                {digest.highlights.slice(0, 3).map((h, i) => (
+                  <div className="digest-highlight" key={i}>
+                    <span className="digest-highlight-concept">{h.concept}</span>
+                    <span className="digest-highlight-meta">
+                      {(h.confidence * 100).toFixed(0)}% &middot; {h.sourceType}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

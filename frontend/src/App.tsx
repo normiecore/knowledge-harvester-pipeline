@@ -13,6 +13,8 @@ import Users from './pages/Users';
 import Dashboard from './pages/Dashboard';
 import EngramDetail from './pages/EngramDetail';
 import AuditLog from './pages/AuditLog';
+import Settings from './pages/Settings';
+import Vaults from './pages/Vaults';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
@@ -82,7 +84,9 @@ export default function App() {
                   <Route path="/users" element={<Users />} />
                   <Route path="/engram/:id" element={<EngramDetail />} />
                   <Route path="/dead-letters" element={<DeadLetters />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route path="/audit" element={<AuditLog />} />
+                  <Route path="/vaults" element={<Vaults />} />
                 </Routes>
               </main>
             </div>

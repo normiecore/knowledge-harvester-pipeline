@@ -11,6 +11,7 @@ import { topicForUser, TOPICS } from '../queue/topics.js';
 import type { ConcurrencyLimiter } from './concurrency-limiter.js';
 import type { PipelineMetrics } from './metrics.js';
 import type { OcrClient } from './ocr.js';
+import type { SettingsStore } from '../storage/settings-store.js';
 
 export interface ProcessResult {
   action: 'stored' | 'blocked' | 'deduplicated' | 'error';
@@ -27,6 +28,7 @@ export class PipelineProcessor {
     private limiter?: ConcurrencyLimiter,
     private metrics?: PipelineMetrics,
     private ocrClient?: OcrClient,
+    private settingsStore?: SettingsStore,
   ) {}
 
   async process(capture: RawCapture): Promise<ProcessResult> {
@@ -78,6 +80,22 @@ export class PipelineProcessor {
 
     // Stage 5: Build engram and store (MuninnDB is source of truth, write there first)
     const engram = buildEngram(capture, extraction);
+
+    // Auto-approve: if the user has configured an auto-approve threshold and
+    // the extraction confidence meets or exceeds it, skip the pending state.
+    if (this.settingsStore) {
+      const threshold = this.settingsStore.getAutoApproveThreshold(capture.userId);
+      if (threshold > 0 && extraction.confidence >= threshold) {
+        engram.approval_status = 'approved';
+        engram.approved_at = new Date().toISOString();
+        engram.approved_by = 'auto';
+        logger.info(
+          { captureId: capture.id, confidence: extraction.confidence, threshold },
+          'Auto-approved engram (confidence >= threshold)',
+        );
+      }
+    }
+
     await this.vaultManager.storePending(engram);
 
     // Update local index so the API can query pending engrams.

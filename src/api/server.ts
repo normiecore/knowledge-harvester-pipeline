@@ -13,6 +13,10 @@ import { statsRoutes } from './routes/stats.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { userRoutes } from './routes/users.js';
 import { auditRoutes } from './routes/audit.js';
+import { settingsRoutes } from './routes/settings.js';
+import { docsRoutes } from './routes/docs.js';
+import { vaultRoutes } from './routes/vaults.js';
+import { digestRoutes } from './routes/digest.js';
 import type { MuninnDBClient } from '../storage/muninndb-client.js';
 import type { VaultManager } from '../storage/vault-manager.js';
 import type { EngramIndex } from '../storage/engram-index.js';
@@ -22,6 +26,7 @@ import type { NatsClient } from '../queue/nats-client.js';
 import type { UserCache } from '../ingestion/user-cache.js';
 import type { UserStore } from '../storage/user-store.js';
 import type { AuditStore } from '../storage/audit-store.js';
+import type { SettingsStore } from '../storage/settings-store.js';
 
 export interface ServerDeps {
   muninnClient: MuninnDBClient;
@@ -35,6 +40,7 @@ export interface ServerDeps {
   deadLetterStore?: import('../storage/dead-letter-store.js').DeadLetterStore;
   userStore?: UserStore;
   auditStore?: AuditStore;
+  settingsStore?: SettingsStore;
   config?: { llmBaseUrl: string; muninndbUrl: string };
 }
 
@@ -95,7 +101,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
   // Auth preHandler for all /api routes except health and /ws/
   app.addHook('preHandler', async (req, reply) => {
     const url = req.url;
-    if (url === '/api/health' || url.startsWith('/ws/')) return;
+    if (url === '/api/health' || url === '/api/docs' || url === '/api/docs.json' || url.startsWith('/ws/')) return;
     if (!url.startsWith('/api/')) return;
 
     const authHeader = req.headers.authorization;
@@ -158,6 +164,26 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
       auditStore: deps.auditStore,
     });
   }
+
+  if (deps.settingsStore) {
+    await app.register(settingsRoutes, {
+      settingsStore: deps.settingsStore,
+      auditStore: deps.auditStore,
+    });
+  }
+
+  // OpenAPI docs — no auth required
+  await app.register(docsRoutes);
+
+  // Vault browser
+  await app.register(vaultRoutes, {
+    engramIndex: deps.engramIndex,
+  });
+
+  // Digest generator
+  await app.register(digestRoutes, {
+    engramIndex: deps.engramIndex,
+  });
 
   // WebSocket endpoint
   // Browsers cannot set custom headers on WebSocket connections, so we accept

@@ -185,6 +185,59 @@ export async function getAuditActions(): Promise<any> {
   return fetchAPI('/api/audit/actions');
 }
 
+// Settings
+export interface UserSettings {
+  userId: string;
+  notificationNewEngram: number;
+  notificationSound: number;
+  autoApproveConfidence: number;
+  theme: string;
+  itemsPerPage: number;
+  updatedAt: string;
+}
+
+export async function getSettings(): Promise<UserSettings> {
+  return fetchAPI('/api/settings');
+}
+
+export async function updateSettings(data: Partial<Omit<UserSettings, 'userId' | 'updatedAt'>>): Promise<UserSettings> {
+  return fetchAPI('/api/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// Bulk engram actions
+export async function bulkEngramAction(ids: string[], action: 'approve' | 'dismiss'): Promise<{ processed: number; failed: number }> {
+  return fetchAPI('/api/engrams/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ ids, action }),
+  });
+}
+
+// Vaults
+export async function getVaults(): Promise<any> {
+  return fetchAPI('/api/vaults');
+}
+
+export async function getVaultEngrams(name: string, limit = 20, offset = 0, q?: string): Promise<any> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (q) params.set('q', q);
+  return fetchAPI(`/api/vaults/${encodeURIComponent(name)}/engrams?${params}`);
+}
+
+export async function getVaultStats(name: string): Promise<any> {
+  return fetchAPI(`/api/vaults/${encodeURIComponent(name)}/stats`);
+}
+
+// Digest
+export async function getDigest(period: 'daily' | 'weekly'): Promise<any> {
+  return fetchAPI(`/api/digest?period=${period}`);
+}
+
 export interface WebSocketHandle {
   close(): void;
 }
