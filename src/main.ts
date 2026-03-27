@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   const wsManager = new WebSocketManager();
 
   // Pipeline metrics + concurrency limiter
-  const metrics = new PipelineMetrics();
+  const metrics = new PipelineMetrics('metrics.db');
   const limiter = new ConcurrencyLimiter(config.maxConcurrentExtractions);
 
   // Pipeline processor
