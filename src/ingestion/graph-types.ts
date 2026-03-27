@@ -5,6 +5,12 @@ export interface GraphUser {
   userPrincipalName: string;
 }
 
+/** Paginated response from the /users endpoint. */
+export interface GraphPagedResponse<T> {
+  '@odata.nextLink'?: string;
+  value: T[];
+}
+
 export interface GraphDeltaResponse<T> {
   '@odata.nextLink'?: string;
   '@odata.deltaLink'?: string;

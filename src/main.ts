@@ -18,8 +18,32 @@ import { createServer } from './api/server.js';
 import { createAuthVerifier } from './api/auth.js';
 import { RawCaptureSchema } from './types.js';
 import { rebuildIndex } from './storage/rebuild-index.js';
-import type { GraphUser } from './ingestion/graph-types.js';
+import type { GraphUser, GraphPagedResponse } from './ingestion/graph-types.js';
 import OpenAI from 'openai';
+import type { Client } from '@microsoft/microsoft-graph-client';
+
+/** Max concurrent user polls per cycle. */
+const MAX_POLL_CONCURRENCY = 10;
+
+/**
+ * Fetch all users from Graph API, following @odata.nextLink for pagination.
+ * Replaces the old `.top(999)` pattern that silently dropped users beyond page 1.
+ */
+async function fetchAllUsers(
+  graphClient: Client,
+  select: string,
+): Promise<GraphUser[]> {
+  const users: GraphUser[] = [];
+  let url: string | undefined = `/users?$select=${encodeURIComponent(select)}&$top=999`;
+
+  while (url) {
+    const response: GraphPagedResponse<GraphUser> = await graphClient.api(url).get();
+    users.push(...response.value);
+    url = response['@odata.nextLink'];
+  }
+
+  return users;
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -57,12 +81,8 @@ async function main(): Promise<void> {
     console.log('Rebuilding local engram index from MuninnDB...');
     try {
       // Fetch user list from Graph API to know which vaults to sync
-      const usersResponse = await graphClient
-        .api('/users')
-        .select('id')
-        .top(999)
-        .get();
-      const userIds: string[] = (usersResponse.value ?? []).map((u: { id: string }) => u.id);
+      const allUsers = await fetchAllUsers(graphClient, 'id');
+      const userIds: string[] = allUsers.map((u) => u.id);
 
       const result = await rebuildIndex(muninnClient, engramIndex, userIds);
       console.log(`Index rebuild complete: ${result.synced} synced, ${result.errors} errors`);
@@ -124,33 +144,38 @@ async function main(): Promise<void> {
     nats.publish(TOPICS.RAW_CAPTURES, capture);
   });
 
-  // Real poll loop: fetch users from Graph API and poll mail + teams
+  // Concurrency limiter for parallel user polling (separate from extraction limiter)
+  const pollLimiter = new ConcurrencyLimiter(MAX_POLL_CONCURRENCY);
+
+  // Real poll loop: fetch users from Graph API and poll mail + teams in parallel
   const pollInterval = setInterval(async () => {
     try {
-      const usersResponse = await graphClient
-        .api('/users')
-        .select('id,displayName,mail,userPrincipalName')
-        .top(999)
-        .get();
+      const users = await fetchAllUsers(
+        graphClient,
+        'id,displayName,mail,userPrincipalName',
+      );
 
-      const users: GraphUser[] = usersResponse.value ?? [];
+      // Poll each user concurrently, bounded by pollLimiter
+      const tasks = users.map((user) =>
+        pollLimiter.run(async () => {
+          const email = user.mail || user.userPrincipalName;
+          if (!email) return;
 
-      for (const user of users) {
-        const email = user.mail || user.userPrincipalName;
-        if (!email) continue;
+          try {
+            await graphPoller.pollMail(user.id, email);
+          } catch (err) {
+            console.error(`Failed to poll mail for ${user.id}:`, err);
+          }
 
-        try {
-          await graphPoller.pollMail(user.id, email);
-        } catch (err) {
-          console.error(`Failed to poll mail for ${user.id}:`, err);
-        }
+          try {
+            await graphPoller.pollTeamsChat(user.id, email);
+          } catch (err) {
+            console.error(`Failed to poll teams for ${user.id}:`, err);
+          }
+        }),
+      );
 
-        try {
-          await graphPoller.pollTeamsChat(user.id, email);
-        } catch (err) {
-          console.error(`Failed to poll teams for ${user.id}:`, err);
-        }
-      }
+      await Promise.all(tasks);
 
       metrics.recordPoll();
       console.log(`Poll cycle complete — ${users.length} users`);
