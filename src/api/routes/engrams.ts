@@ -2,19 +2,21 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { MuninnDBClient } from '../../storage/muninndb-client.js';
 import type { VaultManager } from '../../storage/vault-manager.js';
 import type { EngramIndex } from '../../storage/engram-index.js';
+import type { WebSocketManager } from '../ws.js';
 import { VaultManager as VM } from '../../storage/vault-manager.js';
 
 interface EngramRoutesOpts extends FastifyPluginOptions {
   muninnClient: MuninnDBClient;
   vaultManager: VaultManager;
   engramIndex: EngramIndex;
+  wsManager: WebSocketManager;
 }
 
 export async function engramRoutes(
   app: FastifyInstance,
   opts: EngramRoutesOpts,
 ): Promise<void> {
-  const { muninnClient, vaultManager, engramIndex } = opts;
+  const { muninnClient, vaultManager, engramIndex, wsManager } = opts;
 
   app.get('/api/engrams', async (req) => {
     const user = (req as any).user;
@@ -72,6 +74,8 @@ export async function engramRoutes(
     } else {
       await muninnClient.remember(vault, existing.concept, JSON.stringify(engram));
     }
+
+    wsManager.notify(user.userId, { type: 'engram_updated', id, status: approval_status });
 
     return { status: 'ok', approval_status };
   });

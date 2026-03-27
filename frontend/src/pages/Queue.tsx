@@ -22,6 +22,9 @@ export default function Queue() {
       if (data.type === 'new_engram') {
         loadEngrams(); // reload on new engram
       }
+      if (data.type === 'engram_updated' && (data.status === 'approved' || data.status === 'dismissed')) {
+        setEngrams(prev => prev.filter(e => e.id !== data.id));
+      }
     });
     return () => ws.close();
   }, [loadEngrams]);

@@ -94,6 +94,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     muninnClient: deps.muninnClient,
     vaultManager: deps.vaultManager,
     engramIndex: deps.engramIndex,
+    wsManager: deps.wsManager,
   });
 
   await app.register(statsRoutes, {

@@ -18,6 +18,7 @@ describe('engram routes', () => {
   let engramIndex: EngramIndex;
   let mockMuninnClient: any;
   let mockVaultManager: any;
+  let mockWsManager: any;
 
   beforeEach(() => {
     dbPath = join(tmpdir(), `engram-test-${randomUUID()}.db`);
@@ -41,6 +42,10 @@ describe('engram routes', () => {
       storeApproved: vi.fn().mockResolvedValue(undefined),
       storePending: vi.fn().mockResolvedValue(undefined),
     };
+
+    mockWsManager = {
+      notify: vi.fn(),
+    };
   });
 
   afterEach(() => {
@@ -59,6 +64,7 @@ describe('engram routes', () => {
       muninnClient: mockMuninnClient,
       vaultManager: mockVaultManager,
       engramIndex,
+      wsManager: mockWsManager,
     });
     return app;
   }

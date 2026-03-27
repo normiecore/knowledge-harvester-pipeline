@@ -1,17 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import { getEngrams } from '../api';
+import React, { useEffect, useState, useCallback } from 'react';
+import { getEngrams, connectWebSocket } from '../api';
 import EngramCard from '../components/EngramCard';
 
 export default function Approved() {
   const [engrams, setEngrams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getEngrams('approved')
-      .then(data => setEngrams(data.engrams || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const loadEngrams = useCallback(async () => {
+    try {
+      const data = await getEngrams('approved');
+      setEngrams(data.engrams || []);
+    } catch (err) {
+      console.error('Failed to load approved engrams:', err);
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    loadEngrams();
+    const ws = connectWebSocket((data) => {
+      if (data.type === 'engram_updated' && data.status === 'approved') {
+        loadEngrams();
+      }
+    });
+    return () => ws.close();
+  }, [loadEngrams]);
 
   if (loading) return <div className="page-loading">Loading...</div>;
 
