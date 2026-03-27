@@ -1,7 +1,7 @@
 {
   "name": "knowledge-harvester-pipeline",
   "version": "1.0.0",
-  "description": "",
+  "description": "Knowledge extraction pipeline — captures M365 + desktop activity, extracts knowledge via LLM, stores in MuninnDB",
   "main": "dist/src/main.js",
   "type": "module",
   "scripts": {
