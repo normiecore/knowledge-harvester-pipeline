@@ -60,6 +60,35 @@ describe('sensitivityPreFilter', () => {
     expect(result.layer).toBe(3);
   });
 
+  it('blocks desktop window captures with sensitive titles', () => {
+    const result = sensitivityPreFilter(
+      makeCapture({
+        sourceType: 'desktop_window',
+        sourceApp: 'knowledge-harvester-desktop',
+        rawContent: JSON.stringify({
+          title: 'Performance Review - John Smith.docx - Word',
+          owner: 'Microsoft Word',
+        }),
+      }),
+    );
+    expect(result.action).toBe('block');
+    expect(result.layer).toBe(2);
+  });
+
+  it('passes desktop window captures with safe titles', () => {
+    const result = sensitivityPreFilter(
+      makeCapture({
+        sourceType: 'desktop_window',
+        sourceApp: 'knowledge-harvester-desktop',
+        rawContent: JSON.stringify({
+          title: 'Subsea Connector FEA Report.pdf - Adobe Acrobat',
+          owner: 'Adobe Acrobat',
+        }),
+      }),
+    );
+    expect(result.action).toBe('pass');
+  });
+
   it('blocks sensitive sourceApp names', () => {
     const result = sensitivityPreFilter(
       makeCapture({ sourceApp: 'adp.com' }),

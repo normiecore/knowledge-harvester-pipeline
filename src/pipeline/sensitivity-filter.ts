@@ -26,8 +26,8 @@ export function sensitivityPreFilter(capture: RawCapture): FilterResult {
   let body = '';
   try {
     const parsed = JSON.parse(capture.rawContent);
-    subject = parsed.subject ?? '';
-    body = parsed.bodyPreview ?? parsed.body ?? '';
+    subject = parsed.subject ?? parsed.title ?? '';
+    body = parsed.bodyPreview ?? parsed.body ?? parsed.content ?? '';
   } catch {
     // If rawContent is not JSON, treat entire thing as body
     body = capture.rawContent;
