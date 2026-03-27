@@ -3,6 +3,7 @@ export interface GraphUser {
   displayName: string;
   mail: string;
   userPrincipalName: string;
+  department?: string;
 }
 
 /** Paginated response from the /users endpoint. */

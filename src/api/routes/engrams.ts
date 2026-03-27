@@ -3,6 +3,7 @@ import type { MuninnDBClient } from '../../storage/muninndb-client.js';
 import type { VaultManager } from '../../storage/vault-manager.js';
 import type { EngramIndex } from '../../storage/engram-index.js';
 import type { WebSocketManager } from '../ws.js';
+import type { UserCache } from '../../ingestion/user-cache.js';
 import { VaultManager as VM } from '../../storage/vault-manager.js';
 
 interface EngramRoutesOpts extends FastifyPluginOptions {
@@ -10,13 +11,14 @@ interface EngramRoutesOpts extends FastifyPluginOptions {
   vaultManager: VaultManager;
   engramIndex: EngramIndex;
   wsManager: WebSocketManager;
+  userCache?: UserCache;
 }
 
 export async function engramRoutes(
   app: FastifyInstance,
   opts: EngramRoutesOpts,
 ): Promise<void> {
-  const { muninnClient, vaultManager, engramIndex, wsManager } = opts;
+  const { muninnClient, vaultManager, engramIndex, wsManager, userCache } = opts;
 
   app.get('/api/engrams', async (req) => {
     const user = (req as any).user;
@@ -72,9 +74,8 @@ export async function engramRoutes(
   app.patch('/api/engrams/:id', async (req, reply) => {
     const user = (req as any).user;
     const { id } = req.params as { id: string };
-    const { approval_status, department } = req.body as {
+    const { approval_status } = req.body as {
       approval_status: 'approved' | 'dismissed';
-      department?: string;
     };
 
     const vault = VM.personalVault(user.userId);
@@ -92,7 +93,8 @@ export async function engramRoutes(
 
     engramIndex.updateStatus(id, approval_status);
 
-    if (approval_status === 'approved' && department) {
+    if (approval_status === 'approved') {
+      const department = userCache?.getDepartment(user.userId) ?? 'unassigned';
       await vaultManager.storeApproved(engram, department);
     } else {
       await muninnClient.remember(vault, existing.concept, JSON.stringify(engram));

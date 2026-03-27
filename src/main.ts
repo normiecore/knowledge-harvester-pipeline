@@ -20,6 +20,7 @@ import { createAuthVerifier } from './api/auth.js';
 import { RawCaptureSchema } from './types.js';
 import { rebuildIndex } from './storage/rebuild-index.js';
 import type { GraphUser, GraphPagedResponse } from './ingestion/graph-types.js';
+import { UserCache } from './ingestion/user-cache.js';
 import OpenAI from 'openai';
 import type { Client } from '@microsoft/microsoft-graph-client';
 
@@ -73,6 +74,9 @@ async function main(): Promise<void> {
   // MuninnDB + VaultManager
   const muninnClient = new MuninnDBClient(config.muninndb.url, config.muninndb.apiKey);
   const vaultManager = new VaultManager(muninnClient);
+
+  // In-memory cache of Azure AD user profiles (department, etc.)
+  const userCache = new UserCache();
 
   // Rebuild local index from MuninnDB on startup if requested.
   // Set REBUILD_INDEX=1 or pass --rebuild-index to force a full resync.
@@ -153,8 +157,11 @@ async function main(): Promise<void> {
     try {
       const users = await fetchAllUsers(
         graphClient,
-        'id,displayName,mail,userPrincipalName',
+        'id,displayName,mail,userPrincipalName,department',
       );
+
+      // Refresh the user cache with the latest Azure AD profiles
+      userCache.refresh(users);
 
       // Poll each user concurrently, bounded by pollLimiter
       const tasks = users.map((user) =>
@@ -220,6 +227,7 @@ async function main(): Promise<void> {
     authVerifier,
     metrics,
     natsClient: nats,
+    userCache,
     config: {
       llmBaseUrl: config.llm.baseUrl,
       muninndbUrl: config.muninndb.url,

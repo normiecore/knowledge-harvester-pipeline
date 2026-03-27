@@ -13,6 +13,7 @@ import type { EngramIndex } from '../storage/engram-index.js';
 import type { WebSocketManager } from './ws.js';
 import type { PipelineMetrics } from '../pipeline/metrics.js';
 import type { NatsClient } from '../queue/nats-client.js';
+import type { UserCache } from '../ingestion/user-cache.js';
 
 export interface ServerDeps {
   muninnClient: MuninnDBClient;
@@ -22,6 +23,7 @@ export interface ServerDeps {
   authVerifier: AuthVerifier;
   metrics?: PipelineMetrics;
   natsClient?: NatsClient;
+  userCache?: UserCache;
   config?: { llmBaseUrl: string; muninndbUrl: string };
 }
 
@@ -96,6 +98,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     vaultManager: deps.vaultManager,
     engramIndex: deps.engramIndex,
     wsManager: deps.wsManager,
+    userCache: deps.userCache,
   });
 
   await app.register(statsRoutes, {
