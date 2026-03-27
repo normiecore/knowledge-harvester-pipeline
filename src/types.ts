@@ -69,3 +69,20 @@ export interface OrgEngram {
   tags: string[];
   department: string;
 }
+
+/**
+ * Thrown when LLM extraction fails after all retries are exhausted.
+ * Carries the original capture so the processor can publish it to the dead-letter topic.
+ */
+export class ExtractionError extends Error {
+  public readonly capture: RawCapture;
+  public readonly attempts: number;
+
+  constructor(message: string, capture: RawCapture, attempts: number, cause?: Error) {
+    super(message);
+    this.name = 'ExtractionError';
+    this.capture = capture;
+    this.attempts = attempts;
+    if (cause) this.cause = cause;
+  }
+}

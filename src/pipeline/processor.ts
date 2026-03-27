@@ -4,8 +4,9 @@ import type { Extractor } from './extractor.js';
 import type { Deduplicator } from './deduplicator.js';
 import type { VaultManager } from '../storage/vault-manager.js';
 import type { EngramIndex } from '../storage/engram-index.js';
+import { ExtractionError } from '../types.js';
 import type { RawCapture } from '../types.js';
-import { topicForUser } from '../queue/topics.js';
+import { topicForUser, TOPICS } from '../queue/topics.js';
 import type { ConcurrencyLimiter } from './concurrency-limiter.js';
 import type { PipelineMetrics } from './metrics.js';
 
@@ -40,9 +41,28 @@ export class PipelineProcessor {
     }
 
     // Stage 3: LLM extraction + sensitivity (with optional concurrency limiting)
-    const extraction = this.limiter
-      ? await this.limiter.run(() => this.extractor.extract(capture))
-      : await this.extractor.extract(capture);
+    let extraction;
+    try {
+      extraction = this.limiter
+        ? await this.limiter.run(() => this.extractor.extract(capture))
+        : await this.extractor.extract(capture);
+    } catch (err: unknown) {
+      if (err instanceof ExtractionError) {
+        // All retries exhausted — publish to dead-letter topic for later inspection
+        this.publishToNats(TOPICS.DEAD_LETTER, {
+          capture: err.capture,
+          error: err.message,
+          attempts: err.attempts,
+          failedAt: new Date().toISOString(),
+        });
+        this.metrics?.recordError();
+        return {
+          action: 'error',
+          reason: `extraction failed after ${err.attempts} attempts: ${err.message}`,
+        };
+      }
+      throw err;
+    }
 
     // Stage 4: LLM sensitivity gate
     if (extraction.sensitivity.classification === 'block') {
