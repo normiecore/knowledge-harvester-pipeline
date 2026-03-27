@@ -7,6 +7,7 @@ import fastifyStatic from '@fastify/static';
 import rateLimit from '@fastify/rate-limit';
 import type { AuthVerifier } from './auth.js';
 import { engramRoutes } from './routes/engrams.js';
+import { captureRoutes } from './routes/captures.js';
 import { statsRoutes } from './routes/stats.js';
 import type { MuninnDBClient } from '../storage/muninndb-client.js';
 import type { VaultManager } from '../storage/vault-manager.js';
@@ -109,6 +110,12 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     wsManager: deps.wsManager,
     userCache: deps.userCache,
   });
+
+  if (deps.natsClient) {
+    await app.register(captureRoutes, {
+      natsClient: deps.natsClient,
+    });
+  }
 
   await app.register(statsRoutes, {
     muninnClient: deps.muninnClient,

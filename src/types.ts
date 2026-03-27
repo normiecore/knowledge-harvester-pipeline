@@ -6,6 +6,8 @@ export const SOURCE_TYPES = [
   'graph_calendar',
   'graph_document',
   'graph_task',
+  'desktop_screenshot',
+  'desktop_window',
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
