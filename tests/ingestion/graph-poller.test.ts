@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GraphPoller } from '../../src/ingestion/graph-poller.js';
 import type { RawCapture } from '../../src/types.js';
-import type { GraphDeltaResponse, GraphMessage, GraphChatMessage } from '../../src/ingestion/graph-types.js';
+import type { GraphDeltaResponse, GraphMessage, GraphChatMessage, GraphCalendarEvent, GraphDriveItem } from '../../src/ingestion/graph-types.js';
 
 function makeMockGraphClient(responses: Record<string, unknown>) {
   return {
@@ -92,6 +92,74 @@ describe('GraphPoller', () => {
     expect(graphClient.api).toHaveBeenCalledWith('https://existing-delta-link');
     expect(published).toHaveLength(1);
     expect(published[0].rawContent).toContain('Follow up');
+  });
+
+  it('polls calendar events and publishes captures', async () => {
+    const calClient = makeMockGraphClient({
+      '/users/user-1/events/delta': {
+        '@odata.deltaLink': 'https://graph.microsoft.com/delta?token=cal',
+        value: [
+          {
+            id: 'evt-1',
+            subject: 'Sprint Planning',
+            bodyPreview: 'Discuss sprint goals',
+            start: { dateTime: '2026-03-27T09:00:00', timeZone: 'UTC' },
+            end: { dateTime: '2026-03-27T10:00:00', timeZone: 'UTC' },
+            location: { displayName: 'Room A' },
+            organizer: { emailAddress: { name: 'Alice', address: 'alice@co.com' } },
+            attendees: [{ emailAddress: { name: 'Bob', address: 'bob@co.com' }, type: 'required' }],
+          },
+        ],
+      } satisfies GraphDeltaResponse<GraphCalendarEvent>,
+    });
+    const calDelta = makeMockDeltaStore();
+    const calPublished: RawCapture[] = [];
+    const calPoller = new GraphPoller(calClient as any, calDelta as any, (c) => { calPublished.push(c); });
+
+    await calPoller.pollCalendar('user-1', 'user1@co.com');
+
+    expect(calPublished).toHaveLength(1);
+    expect(calPublished[0].sourceType).toBe('graph_calendar');
+    expect(calPublished[0].rawContent).toContain('Sprint Planning');
+    expect(calPublished[0].rawContent).toContain('Room A');
+    expect(calDelta.setDeltaLink).toHaveBeenCalledWith('user-1', 'calendar', expect.any(String));
+  });
+
+  it('polls OneDrive file changes and skips folders', async () => {
+    const driveClient = makeMockGraphClient({
+      '/users/user-1/drive/root/delta': {
+        '@odata.deltaLink': 'https://graph.microsoft.com/delta?token=drive',
+        value: [
+          {
+            id: 'file-1',
+            name: 'specs.docx',
+            webUrl: 'https://sharepoint.com/specs.docx',
+            lastModifiedDateTime: '2026-03-27T08:00:00Z',
+            lastModifiedBy: { user: { displayName: 'Alice', id: 'u1' } },
+            parentReference: { driveId: 'd1', path: '/root:/Documents' },
+            file: { mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            size: 24000,
+          },
+          {
+            id: 'folder-1',
+            name: 'Documents',
+            webUrl: 'https://sharepoint.com/Documents',
+            lastModifiedDateTime: '2026-03-27T07:00:00Z',
+            folder: { childCount: 5 },
+          },
+        ],
+      } satisfies GraphDeltaResponse<GraphDriveItem>,
+    });
+    const driveDelta = makeMockDeltaStore();
+    const drivePublished: RawCapture[] = [];
+    const drivePoller = new GraphPoller(driveClient as any, driveDelta as any, (c) => { drivePublished.push(c); });
+
+    await drivePoller.pollOneDrive('user-1', 'user1@co.com');
+
+    expect(drivePublished).toHaveLength(1); // folder skipped
+    expect(drivePublished[0].sourceType).toBe('graph_document');
+    expect(drivePublished[0].rawContent).toContain('specs.docx');
+    expect(driveDelta.setDeltaLink).toHaveBeenCalledWith('user-1', 'onedrive', expect.any(String));
   });
 
   it('follows @odata.nextLink for pagination', async () => {
