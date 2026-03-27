@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { logger } from '../config/logger.js';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import type { AuthVerifier } from './auth.js';
@@ -34,7 +35,7 @@ async function checkUrl(url: string): Promise<boolean> {
 }
 
 export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: logger.child({ component: 'fastify' }) });
 
   await app.register(fastifyWebsocket);
 

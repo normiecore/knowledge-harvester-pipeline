@@ -1,3 +1,4 @@
+import { logger } from '../config/logger.js';
 import { sensitivityPreFilter } from './sensitivity-filter.js';
 import { buildEngram } from './engram-builder.js';
 import type { Extractor } from './extractor.js';
@@ -90,10 +91,7 @@ export class PipelineProcessor {
           tags: engram.tags,
         });
       } catch (indexErr) {
-        console.warn(
-          `Local index upsert failed for capture ${capture.id} (MuninnDB write succeeded, index can be rebuilt):`,
-          indexErr,
-        );
+        logger.warn({ captureId: capture.id, err: indexErr }, 'Local index upsert failed (MuninnDB write succeeded, index can be rebuilt)');
       }
     }
 

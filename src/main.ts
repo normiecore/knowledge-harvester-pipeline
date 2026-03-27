@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { logger } from './config/logger.js';
 import { loadConfig } from './config/index.js';
 import { NatsClient } from './queue/nats-client.js';
 import { TOPICS } from './queue/topics.js';
@@ -51,7 +52,7 @@ async function main(): Promise<void> {
   // NATS
   const nats = new NatsClient();
   await nats.connect(config.natsUrl);
-  console.log('Connected to NATS');
+  logger.info('Connected to NATS');
 
   // Graph client + DeltaStore
   const graphClient = createGraphClient({
@@ -78,16 +79,16 @@ async function main(): Promise<void> {
   const shouldRebuild =
     process.env.REBUILD_INDEX === '1' || process.argv.includes('--rebuild-index');
   if (shouldRebuild) {
-    console.log('Rebuilding local engram index from MuninnDB...');
+    logger.info('Rebuilding local engram index from MuninnDB...');
     try {
       // Fetch user list from Graph API to know which vaults to sync
       const allUsers = await fetchAllUsers(graphClient, 'id');
       const userIds: string[] = allUsers.map((u) => u.id);
 
       const result = await rebuildIndex(muninnClient, engramIndex, userIds);
-      console.log(`Index rebuild complete: ${result.synced} synced, ${result.errors} errors`);
+      logger.info({ synced: result.synced, errors: result.errors }, 'Index rebuild complete');
     } catch (err) {
-      console.warn('Index rebuild failed (continuing with existing index):', err);
+      logger.warn({ err }, 'Index rebuild failed (continuing with existing index)');
     }
   }
 
@@ -114,7 +115,7 @@ async function main(): Promise<void> {
     try {
       const capture = RawCaptureSchema.parse(data);
       const result = await processor.process(capture);
-      console.log(`Processed capture ${capture.id}: ${result.action}`);
+      logger.info({ captureId: capture.id, action: result.action }, 'Capture processed');
 
       if (result.action === 'stored') {
         wsManager.notify(capture.userId, {
@@ -123,7 +124,7 @@ async function main(): Promise<void> {
         });
       }
     } catch (err) {
-      console.error('Failed to process capture:', err);
+      logger.error({ err }, 'Failed to process capture');
       metrics.recordError();
 
       // Publish to dead letter topic
@@ -134,7 +135,7 @@ async function main(): Promise<void> {
           timestamp: new Date().toISOString(),
         });
       } catch (dlErr) {
-        console.error('Failed to publish to dead letter:', dlErr);
+        logger.error({ err: dlErr }, 'Failed to publish to dead letter');
       }
     }
   });
@@ -164,13 +165,13 @@ async function main(): Promise<void> {
           try {
             await graphPoller.pollMail(user.id, email);
           } catch (err) {
-            console.error(`Failed to poll mail for ${user.id}:`, err);
+            logger.error({ userId: user.id, err }, 'Failed to poll mail');
           }
 
           try {
             await graphPoller.pollTeamsChat(user.id, email);
           } catch (err) {
-            console.error(`Failed to poll teams for ${user.id}:`, err);
+            logger.error({ userId: user.id, err }, 'Failed to poll teams');
           }
         }),
       );
@@ -178,9 +179,9 @@ async function main(): Promise<void> {
       await Promise.all(tasks);
 
       metrics.recordPoll();
-      console.log(`Poll cycle complete — ${users.length} users`);
+      logger.info({ userCount: users.length }, 'Poll cycle complete');
     } catch (err) {
-      console.error('Poll error:', err);
+      logger.error({ err }, 'Poll error');
     }
   }, config.pollIntervalMs);
 
@@ -192,10 +193,10 @@ async function main(): Promise<void> {
     try {
       const purged = engramIndex.purgeOlderThan(PURGE_DISMISSED_DAYS);
       if (purged > 0) {
-        console.log(`Purged ${purged} dismissed engram(s) older than ${PURGE_DISMISSED_DAYS} days`);
+        logger.info({ purged, days: PURGE_DISMISSED_DAYS }, 'Purged dismissed engrams');
       }
     } catch (err) {
-      console.error('Failed to purge dismissed engrams:', err);
+      logger.error({ err }, 'Failed to purge dismissed engrams');
     }
   };
 
@@ -226,11 +227,11 @@ async function main(): Promise<void> {
   });
 
   await server.listen({ port: 3001, host: '0.0.0.0' });
-  console.log('Server listening on port 3001');
+  logger.info('Server listening on port 3001');
 
   // Graceful shutdown
   const shutdown = async () => {
-    console.log('Shutting down...');
+    logger.info('Shutting down...');
     clearInterval(pollInterval);
     clearInterval(purgeInterval);
     await server.close();
@@ -238,7 +239,7 @@ async function main(): Promise<void> {
     deltaStore.close();
     deduplicator.close();
     engramIndex.close();
-    console.log('Shutdown complete');
+    logger.info('Shutdown complete');
     process.exit(0);
   };
 
@@ -250,6 +251,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err);
+  logger.error('Fatal error:', err);
   process.exit(1);
 });
