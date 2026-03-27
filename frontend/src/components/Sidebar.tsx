@@ -5,6 +5,7 @@ import { clearToken, getHealth } from '../api';
 const THEME_KEY = 'harvester-theme';
 
 const NAV_ITEMS = [
+  { to: '/', label: 'Dashboard', icon: '\u2302' },
   { to: '/queue', label: 'Queue', icon: '\u2709' },
   { to: '/approved', label: 'Approved', icon: '\u2713' },
   { to: '/search', label: 'Search', icon: '\u2315' },
@@ -73,6 +74,7 @@ export default function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/'}
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={closeMobile}
             >
