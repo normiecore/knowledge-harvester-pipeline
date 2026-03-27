@@ -5,9 +5,11 @@ interface EngramCardProps {
   engram: any;
   showActions?: boolean;
   onAction?: () => void;
+  focused?: boolean;
+  onFocus?: () => void;
 }
 
-export default function EngramCard({ engram, showActions = true, onAction }: EngramCardProps) {
+export default function EngramCard({ engram, showActions = true, onAction, focused = false, onFocus }: EngramCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -52,7 +54,7 @@ export default function EngramCard({ engram, showActions = true, onAction }: Eng
   } catch {}
 
   return (
-    <div className={`engram-card ${expanded ? 'expanded' : ''}`} onClick={() => setExpanded(!expanded)}>
+    <div className={`engram-card ${expanded ? 'expanded' : ''} ${focused ? 'focused' : ''}`} onClick={() => { onFocus?.(); setExpanded(!expanded); }}>
       <div className="engram-header">
         <div className="engram-info">
           <h3 className="engram-title">{engram.concept || 'Untitled'}</h3>
