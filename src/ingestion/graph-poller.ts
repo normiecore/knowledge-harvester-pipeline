@@ -6,6 +6,7 @@ import type {
   GraphDeltaResponse,
   GraphMessage,
   GraphChatMessage,
+  GraphDriveItem,
 } from './graph-types.js';
 import { retryWithBackoff, RetryableError } from './graph-retry.js';
 
@@ -112,6 +113,52 @@ export class GraphPoller {
 
     if (deltaLink) {
       this.deltaStore.setDeltaLink(userId, 'teams', deltaLink);
+    }
+  }
+
+  async pollOneDrive(userId: string, userEmail: string): Promise<void> {
+    let url: string | undefined =
+      this.deltaStore.getDeltaLink(userId, 'onedrive') ??
+      `/users/${userId}/drive/root/delta`;
+    let deltaLink: string | undefined;
+
+    while (url) {
+      const response: GraphDeltaResponse<GraphDriveItem> =
+        await this.fetchWithRetry(url);
+
+      for (const item of response.value) {
+        // Skip folders — only capture file changes
+        if (item.folder) continue;
+
+        const capture: RawCapture = {
+          id: randomUUID(),
+          userId,
+          userEmail,
+          sourceType: 'graph_document',
+          sourceApp: 'onedrive',
+          capturedAt: item.lastModifiedDateTime,
+          rawContent: JSON.stringify({
+            name: item.name,
+            webUrl: item.webUrl,
+            path: item.parentReference?.path,
+            mimeType: item.file?.mimeType,
+            size: item.size,
+            lastModifiedBy: item.lastModifiedBy?.user?.displayName,
+          }),
+          metadata: {
+            driveItemId: item.id,
+            driveId: item.parentReference?.driveId,
+          },
+        };
+        this.publish(capture);
+      }
+
+      deltaLink = response['@odata.deltaLink'];
+      url = response['@odata.nextLink'];
+    }
+
+    if (deltaLink) {
+      this.deltaStore.setDeltaLink(userId, 'onedrive', deltaLink);
     }
   }
 }

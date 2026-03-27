@@ -36,3 +36,20 @@ export interface GraphChatMessage {
   chatId?: string;
   channelIdentity?: { teamId: string; channelId: string };
 }
+
+export interface GraphDriveItem {
+  id: string;
+  name: string;
+  webUrl: string;
+  lastModifiedDateTime: string;
+  lastModifiedBy?: {
+    user?: { displayName: string; id: string; email?: string };
+  };
+  parentReference?: {
+    driveId?: string;
+    path?: string;
+  };
+  file?: { mimeType: string; hashes?: { sha256Hash?: string } };
+  folder?: { childCount: number };
+  size?: number;
+}

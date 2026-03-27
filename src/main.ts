@@ -173,6 +173,12 @@ async function main(): Promise<void> {
           } catch (err) {
             logger.error({ userId: user.id, err }, 'Failed to poll teams');
           }
+
+          try {
+            await graphPoller.pollOneDrive(user.id, email);
+          } catch (err) {
+            logger.error({ userId: user.id, err }, 'Failed to poll onedrive');
+          }
         }),
       );
 
