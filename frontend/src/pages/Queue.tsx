@@ -107,12 +107,14 @@ export default function Queue() {
     try {
       const result = await bulkEngramAction(ids, action);
       setBatchProgress({ done: result.processed + result.failed, total: ids.length });
-      // Remove processed engrams from the list
-      setEngrams(prev => prev.filter(e => !selected.has(e.id)));
       setSelected(new Set());
       if (result.failed === 0) {
+        // All succeeded — remove from UI
+        setEngrams(prev => prev.filter(e => !selected.has(e.id)));
         addToast('success', `Bulk ${action}`, `All ${result.processed} engrams ${status} successfully.`);
       } else {
+        // Partial failure — reload to show accurate state
+        load();
         addToast('warning', `Bulk ${action} partial`, `${result.processed} succeeded, ${result.failed} failed.`);
       }
     } catch {

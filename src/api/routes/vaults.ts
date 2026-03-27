@@ -90,6 +90,7 @@ function vaultFilter(vaultName: string): { where: string; params: (string | numb
 
   if (vaultName.startsWith(deptPrefix)) {
     const dept = vaultName.slice(deptPrefix.length);
+    if (!dept) return null; // empty department name is invalid
     return {
       where: `department = ? AND approval_status = 'approved'`,
       params: [dept],
@@ -98,6 +99,7 @@ function vaultFilter(vaultName: string): { where: string; params: (string | numb
 
   if (vaultName.startsWith(personalPrefix)) {
     const userId = vaultName.slice(personalPrefix.length);
+    if (!userId) return null; // empty userId is invalid
     return { where: `user_id = ?`, params: [userId] };
   }
 

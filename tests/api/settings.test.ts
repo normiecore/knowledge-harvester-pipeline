@@ -92,17 +92,17 @@ describe('settings routes', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: '/api/settings',
-      payload: { theme: 'system' },
+      payload: { theme: 'dark' },
     });
     const body = JSON.parse(res.body);
 
-    expect(body.theme).toBe('system');
+    expect(body.theme).toBe('dark');
     expect(body.itemsPerPage).toBe(50); // preserved from earlier update
 
     // Confirm via GET
     const getRes = await app.inject({ method: 'GET', url: '/api/settings' });
     const getBody = JSON.parse(getRes.body);
-    expect(getBody.theme).toBe('system');
+    expect(getBody.theme).toBe('dark');
     expect(getBody.itemsPerPage).toBe(50);
   });
 });
