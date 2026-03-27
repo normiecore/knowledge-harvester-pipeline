@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GraphPoller } from '../../src/ingestion/graph-poller.js';
 import type { RawCapture } from '../../src/types.js';
-import type { GraphDeltaResponse, GraphMessage, GraphChatMessage, GraphCalendarEvent, GraphDriveItem } from '../../src/ingestion/graph-types.js';
+import type { GraphDeltaResponse, GraphMessage, GraphChatMessage, GraphCalendarEvent, GraphDriveItem, GraphTodoTask, GraphTodoTaskList } from '../../src/ingestion/graph-types.js';
 
 function makeMockGraphClient(responses: Record<string, unknown>) {
   return {
@@ -207,5 +207,38 @@ describe('GraphPoller', () => {
       'mail',
       'https://graph.microsoft.com/delta?token=final',
     );
+  });
+
+  it('polls To-Do tasks and publishes captures', async () => {
+    const todoClient = makeMockGraphClient({
+      '/users/user-1/todo/lists': {
+        value: [{ id: 'list-1', displayName: 'Work Tasks' }] satisfies GraphTodoTaskList[],
+      },
+      '/users/user-1/todo/lists/list-1/tasks?$filter=lastModifiedDateTime gt 1970-01-01T00:00:00Z&$orderby=lastModifiedDateTime desc&$top=50': {
+        value: [
+          {
+            id: 'task-1',
+            title: 'Review subsea connector specs',
+            body: { content: 'Check pressure ratings', contentType: 'text' },
+            status: 'notStarted',
+            importance: 'high',
+            createdDateTime: '2026-03-27T08:00:00Z',
+            lastModifiedDateTime: '2026-03-27T09:00:00Z',
+            dueDateTime: { dateTime: '2026-03-28T17:00:00', timeZone: 'UTC' },
+          },
+        ] satisfies GraphTodoTask[],
+      },
+    });
+    const todoDelta = makeMockDeltaStore();
+    const todoPublished: RawCapture[] = [];
+    const todoPoller = new GraphPoller(todoClient as any, todoDelta as any, (c) => { todoPublished.push(c); });
+
+    await todoPoller.pollTodoTasks('user-1', 'user1@co.com');
+
+    expect(todoPublished).toHaveLength(1);
+    expect(todoPublished[0].sourceType).toBe('graph_task');
+    expect(todoPublished[0].rawContent).toContain('Review subsea connector specs');
+    expect(todoPublished[0].rawContent).toContain('Work Tasks');
+    expect(todoDelta.setDeltaLink).toHaveBeenCalledWith('user-1', 'todo', expect.any(String));
   });
 });

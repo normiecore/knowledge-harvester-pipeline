@@ -12,7 +12,30 @@ export class NatsClient {
   private connection: NatsConnection | null = null;
 
   async connect(url: string): Promise<void> {
-    this.connection = await connect({ servers: url });
+    this.connection = await connect({
+      servers: url,
+      reconnect: true,
+      maxReconnectAttempts: -1, // unlimited
+      reconnectTimeWait: 2000,  // 2s between attempts
+    });
+
+    // Log reconnect events
+    (async () => {
+      if (!this.connection) return;
+      for await (const status of this.connection.status()) {
+        switch (status.type) {
+          case 'reconnecting':
+            logger.warn('NATS reconnecting...');
+            break;
+          case 'reconnect':
+            logger.info('NATS reconnected');
+            break;
+          case 'disconnect':
+            logger.warn('NATS disconnected');
+            break;
+        }
+      }
+    })();
   }
 
   async disconnect(): Promise<void> {
