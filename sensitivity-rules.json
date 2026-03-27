@@ -1,0 +1,37 @@
+{
+  "excludedSources": [
+    "hr.company.com",
+    "banking",
+    "payroll",
+    "myhr",
+    "workday.com",
+    "adp.com",
+    "healthportal",
+    "medical",
+    "benefits.company.com"
+  ],
+  "titleBlockPatterns": [
+    "salary",
+    "performance\\s+review",
+    "disciplinary",
+    "termination",
+    "grievance",
+    "compensation\\s+adjustment",
+    "bonus\\s+allocation",
+    "severance",
+    "redundancy"
+  ],
+  "contentBlockPatterns": [
+    "\\bdivorce\\b",
+    "\\bmedical\\s+results?\\b",
+    "\\bpregnancy\\s+test\\b",
+    "\\bmental\\s+health\\s+diagnosis\\b",
+    "\\brehabilitation\\b",
+    "\\bsubstance\\s+abuse\\b",
+    "\\bdomestic\\s+violence\\b",
+    "\\bsexual\\s+harassment\\b",
+    "\\bcredit\\s+score\\b",
+    "\\bsocial\\s+security\\s+number\\b",
+    "\\bnational\\s+insurance\\s+number\\b"
+  ]
+}
