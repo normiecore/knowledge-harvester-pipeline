@@ -71,7 +71,7 @@ describe('Extractor', () => {
 
   it('throws on invalid LLM JSON response', async () => {
     const mockClient = makeMockOpenAI('this is not valid json at all');
-    const extractor = new Extractor(mockClient as any);
+    const extractor = new Extractor(mockClient as any, 'gpt-4o-mini', 1, 10);
 
     await expect(extractor.extract(makeCapture())).rejects.toThrow();
   });
