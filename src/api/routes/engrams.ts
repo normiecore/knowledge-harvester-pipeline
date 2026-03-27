@@ -4,6 +4,7 @@ import type { VaultManager } from '../../storage/vault-manager.js';
 import type { EngramIndex } from '../../storage/engram-index.js';
 import type { WebSocketManager } from '../ws.js';
 import type { UserCache } from '../../ingestion/user-cache.js';
+import type { AuditStore } from '../../storage/audit-store.js';
 import { VaultManager as VM } from '../../storage/vault-manager.js';
 
 interface EngramRoutesOpts extends FastifyPluginOptions {
@@ -12,13 +13,14 @@ interface EngramRoutesOpts extends FastifyPluginOptions {
   engramIndex: EngramIndex;
   wsManager: WebSocketManager;
   userCache?: UserCache;
+  auditStore?: AuditStore;
 }
 
 export async function engramRoutes(
   app: FastifyInstance,
   opts: EngramRoutesOpts,
 ): Promise<void> {
-  const { muninnClient, vaultManager, engramIndex, wsManager, userCache } = opts;
+  const { muninnClient, vaultManager, engramIndex, wsManager, userCache, auditStore } = opts;
 
   app.get('/api/engrams', async (req) => {
     const user = (req as any).user;
@@ -113,6 +115,14 @@ export async function engramRoutes(
       ? engramIndex.listByStatus(user.userId, status, MAX_EXPORT)
       : engramIndex.listAll(user.userId, MAX_EXPORT);
 
+    auditStore?.log({
+      userId: user.userId,
+      action: 'engram.export',
+      resourceType: 'engram',
+      details: JSON.stringify({ format, status: status ?? 'all', count: engrams.length }),
+      ipAddress: req.ip,
+    });
+
     if (format === 'csv') {
       const header = 'id,concept,source_type,confidence,tags,approval_status,captured_at';
       const escapeCsv = (val: string) => `"${String(val ?? '').replace(/"/g, '""')}"`;
@@ -181,6 +191,15 @@ export async function engramRoutes(
     }
 
     wsManager.notify(user.userId, { type: 'engram_updated', id, status: approval_status });
+
+    auditStore?.log({
+      userId: user.userId,
+      action: approval_status === 'approved' ? 'engram.approve' : 'engram.dismiss',
+      resourceType: 'engram',
+      resourceId: id,
+      details: JSON.stringify({ approval_status }),
+      ipAddress: req.ip,
+    });
 
     return { status: 'ok', approval_status };
   });

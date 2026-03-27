@@ -158,6 +158,33 @@ export async function retryDeadLetter(id: string): Promise<any> {
   return fetchAPI(`/api/dead-letters/${id}/retry`, { method: 'POST' });
 }
 
+// Audit log
+export interface AuditFilters {
+  userId?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getAuditLog(filters?: AuditFilters): Promise<any> {
+  const params = new URLSearchParams();
+  if (filters) {
+    if (filters.userId) params.set('userId', filters.userId);
+    if (filters.action) params.set('action', filters.action);
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
+    if (filters.limit !== undefined) params.set('limit', String(filters.limit));
+    if (filters.offset !== undefined) params.set('offset', String(filters.offset));
+  }
+  return fetchAPI(`/api/audit?${params}`);
+}
+
+export async function getAuditActions(): Promise<any> {
+  return fetchAPI('/api/audit/actions');
+}
+
 export interface WebSocketHandle {
   close(): void;
 }

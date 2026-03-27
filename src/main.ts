@@ -23,6 +23,7 @@ import type { GraphUser, GraphPagedResponse } from './ingestion/graph-types.js';
 import { UserCache } from './ingestion/user-cache.js';
 import { DeadLetterStore } from './storage/dead-letter-store.js';
 import { UserStore } from './storage/user-store.js';
+import { AuditStore } from './storage/audit-store.js';
 import OpenAI from 'openai';
 import type { Client } from '@microsoft/microsoft-graph-client';
 
@@ -74,6 +75,7 @@ async function main(): Promise<void> {
   const engramIndex = new EngramIndex('engram-index.db');
   const deadLetterStore = new DeadLetterStore('dead-letter.db');
   const userStore = new UserStore('user-store.db');
+  const auditStore = new AuditStore('audit.db');
 
   // MuninnDB + VaultManager
   const muninnClient = new MuninnDBClient(config.muninndb.url, config.muninndb.apiKey);
@@ -273,6 +275,7 @@ async function main(): Promise<void> {
     userCache,
     deadLetterStore,
     userStore,
+    auditStore,
     config: {
       llmBaseUrl: config.llm.baseUrl,
       muninndbUrl: config.muninndb.url,
@@ -295,6 +298,7 @@ async function main(): Promise<void> {
     engramIndex.close();
     deadLetterStore.close();
     userStore.close();
+    auditStore.close();
     metrics.close();
     logger.info('Shutdown complete');
     process.exit(0);

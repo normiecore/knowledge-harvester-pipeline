@@ -12,6 +12,7 @@ import { deadLetterRoutes } from './routes/dead-letters.js';
 import { statsRoutes } from './routes/stats.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { userRoutes } from './routes/users.js';
+import { auditRoutes } from './routes/audit.js';
 import type { MuninnDBClient } from '../storage/muninndb-client.js';
 import type { VaultManager } from '../storage/vault-manager.js';
 import type { EngramIndex } from '../storage/engram-index.js';
@@ -20,6 +21,7 @@ import type { PipelineMetrics } from '../pipeline/metrics.js';
 import type { NatsClient } from '../queue/nats-client.js';
 import type { UserCache } from '../ingestion/user-cache.js';
 import type { UserStore } from '../storage/user-store.js';
+import type { AuditStore } from '../storage/audit-store.js';
 
 export interface ServerDeps {
   muninnClient: MuninnDBClient;
@@ -32,6 +34,7 @@ export interface ServerDeps {
   userCache?: UserCache;
   deadLetterStore?: import('../storage/dead-letter-store.js').DeadLetterStore;
   userStore?: UserStore;
+  auditStore?: AuditStore;
   config?: { llmBaseUrl: string; muninndbUrl: string };
 }
 
@@ -116,6 +119,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     engramIndex: deps.engramIndex,
     wsManager: deps.wsManager,
     userCache: deps.userCache,
+    auditStore: deps.auditStore,
   });
 
   if (deps.natsClient) {
@@ -128,6 +132,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     await app.register(deadLetterRoutes, {
       deadLetterStore: deps.deadLetterStore,
       natsClient: deps.natsClient,
+      auditStore: deps.auditStore,
     });
   }
 
@@ -144,6 +149,13 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     await app.register(userRoutes, {
       userStore: deps.userStore,
       engramIndex: deps.engramIndex,
+      auditStore: deps.auditStore,
+    });
+  }
+
+  if (deps.auditStore) {
+    await app.register(auditRoutes, {
+      auditStore: deps.auditStore,
     });
   }
 

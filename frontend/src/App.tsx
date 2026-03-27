@@ -12,6 +12,7 @@ import DeadLetters from './pages/DeadLetters';
 import Users from './pages/Users';
 import Dashboard from './pages/Dashboard';
 import EngramDetail from './pages/EngramDetail';
+import AuditLog from './pages/AuditLog';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
@@ -81,6 +82,7 @@ export default function App() {
                   <Route path="/users" element={<Users />} />
                   <Route path="/engram/:id" element={<EngramDetail />} />
                   <Route path="/dead-letters" element={<DeadLetters />} />
+                  <Route path="/audit" element={<AuditLog />} />
                 </Routes>
               </main>
             </div>

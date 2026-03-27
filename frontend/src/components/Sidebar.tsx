@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/health', label: 'Health', icon: '\u2665' },
   { to: '/users', label: 'Users', icon: '\u263A' },
   { to: '/dead-letters', label: 'Dead Letters', icon: '\u26A0' },
+  { to: '/audit', label: 'Audit Log', icon: '\u2691' },
 ];
 
 function getStoredTheme(): string {

@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { UserStore } from '../../storage/user-store.js';
 import type { EngramIndex } from '../../storage/engram-index.js';
+import type { AuditStore } from '../../storage/audit-store.js';
 
 interface UserRoutesOpts extends FastifyPluginOptions {
   userStore: UserStore;
   engramIndex: EngramIndex;
+  auditStore?: AuditStore;
 }
 
 /** Convert SQLite 0/1 integer to boolean for API responses */
@@ -18,7 +20,7 @@ export async function userRoutes(
   app: FastifyInstance,
   opts: UserRoutesOpts,
 ): Promise<void> {
-  const { userStore, engramIndex } = opts;
+  const { userStore, engramIndex, auditStore } = opts;
 
   // GET /api/users — List all users with stats (paginated, filterable)
   app.get('/api/users', async (req) => {
@@ -95,6 +97,32 @@ export async function userRoutes(
 
     if (body.harvestingEnabled !== undefined) {
       userStore.toggleHarvesting(id, body.harvestingEnabled);
+
+      const caller = (req as any).user;
+      auditStore?.log({
+        userId: caller.userId,
+        action: 'user.toggle_harvesting',
+        resourceType: 'user',
+        resourceId: id,
+        details: JSON.stringify({ harvestingEnabled: body.harvestingEnabled }),
+        ipAddress: req.ip,
+      });
+    }
+
+    // Log general user update for department/role changes
+    if (body.department !== undefined || body.role !== undefined) {
+      const caller = (req as any).user;
+      auditStore?.log({
+        userId: caller.userId,
+        action: 'user.update',
+        resourceType: 'user',
+        resourceId: id,
+        details: JSON.stringify({
+          ...(body.department !== undefined && { department: body.department }),
+          ...(body.role !== undefined && { role: body.role }),
+        }),
+        ipAddress: req.ip,
+      });
     }
 
     const updated = userStore.getById(id);
