@@ -101,15 +101,26 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
 
   // WebSocket endpoint
+  // Browsers cannot set custom headers on WebSocket connections, so we accept
+  // the token as a query parameter (?token=<jwt>) instead of via the
+  // Authorization header.  The header is still checked as a fallback so that
+  // non-browser clients (e.g. tests, CLI tools) keep working.
   app.get('/ws/engrams', { websocket: true }, async (socket, req) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const queryToken = url.searchParams.get('token');
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
+
+    const bearerToken = queryToken
+      ? `Bearer ${queryToken}`
+      : authHeader ?? '';
+
+    if (!bearerToken) {
       socket.close(4001, 'Missing authorization');
       return;
     }
 
     try {
-      const user = await deps.authVerifier(authHeader);
+      const user = await deps.authVerifier(bearerToken);
       deps.wsManager.addConnection(user.userId, socket);
 
       socket.on('close', () => {

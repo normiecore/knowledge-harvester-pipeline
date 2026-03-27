@@ -56,12 +56,18 @@ export async function getHealth(): Promise<any> {
 }
 
 export function connectWebSocket(onMessage: (data: any) => void): WebSocket {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(`${protocol}//${window.location.host}/ws/engrams`);
+  const token = getToken();
+  if (!token) {
+    // No token means the user is not logged in; redirect instead of
+    // opening an unauthenticated socket that will be immediately closed.
+    window.location.href = '/login';
+    // Return a dummy WebSocket-shaped object so callers don't crash.
+    return new WebSocket(`wss://localhost/__never`);
+  }
 
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ type: 'auth', token: getToken() }));
-  };
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws/engrams?token=${encodeURIComponent(token)}`;
+  const ws = new WebSocket(wsUrl);
 
   ws.onmessage = (e) => {
     try {
@@ -70,7 +76,14 @@ export function connectWebSocket(onMessage: (data: any) => void): WebSocket {
     } catch {}
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event) => {
+    // 4001 = server rejected auth; redirect to login instead of reconnecting.
+    if (event.code === 4001) {
+      clearToken();
+      window.location.href = '/login';
+      return;
+    }
+    // Normal reconnect for transient failures.
     setTimeout(() => connectWebSocket(onMessage), 3000);
   };
 
