@@ -104,12 +104,24 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     networks: [harvester]
+    ports:
+      - "3333:3333"
     depends_on:
       pipeline:
         condition: service_healthy
     environment:
       - PIPELINE_URL=http://pipeline:3001
+      - DASHBOARD_HOST=0.0.0.0
+    volumes:
+      - desktop-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3333/api/state"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   nats-data:
   model-cache:
+  desktop-data:

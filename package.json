@@ -10,17 +10,26 @@
     "dev": "npx tsx src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:load": "npx tsx tests/load/load-test.ts"
+    "test:load": "npx tsx tests/load/load-test.ts",
+    "lint": "eslint src/ frontend/src/",
+    "format": "prettier --write \"src/**/*.ts\" \"frontend/src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"frontend/src/**/*.{ts,tsx}\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/ws": "^8.18.1",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "prettier": "^3.8.1",
     "typescript": "^6.0.2",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^4.1.1"
   },
   "dependencies": {
