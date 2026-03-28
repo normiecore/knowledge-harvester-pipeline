@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WebSocketManager } from '../../src/api/ws.js';
 
 function mockWebSocket(readyState = 1) {
@@ -7,7 +7,9 @@ function mockWebSocket(readyState = 1) {
     send: vi.fn(),
     on: vi.fn(),
     ping: vi.fn(),
+    close: vi.fn(),
     terminate: vi.fn(),
+    removeAllListeners: vi.fn(),
   } as any;
 }
 
@@ -16,6 +18,10 @@ describe('WebSocketManager', () => {
 
   beforeEach(() => {
     manager = new WebSocketManager();
+  });
+
+  afterEach(() => {
+    manager.close();
   });
 
   it('registers and counts connections', () => {
@@ -67,5 +73,55 @@ describe('WebSocketManager', () => {
   it('does nothing when notifying a user with no connections', () => {
     // Should not throw
     manager.notify('nonexistent', { type: 'test' });
+  });
+
+  it('removes pong listener on disconnect', () => {
+    const ws = mockWebSocket();
+    manager.addConnection('user-1', ws);
+    manager.removeConnection('user-1', ws);
+
+    expect(ws.removeAllListeners).toHaveBeenCalledWith('pong');
+    expect(manager.getConnectionCount('user-1')).toBe(0);
+  });
+
+  it('removeConnection is safe for unknown userId', () => {
+    const ws = mockWebSocket();
+    // Should not throw
+    manager.removeConnection('no-such-user', ws);
+  });
+
+  it('removeConnection is safe for unknown ws within a known user', () => {
+    const ws1 = mockWebSocket();
+    const ws2 = mockWebSocket();
+    manager.addConnection('user-1', ws1);
+
+    // ws2 was never added -- should not throw
+    manager.removeConnection('user-1', ws2);
+    expect(manager.getConnectionCount('user-1')).toBe(1);
+  });
+
+  it('close() terminates all connections and clears state', () => {
+    const ws1 = mockWebSocket();
+    const ws2 = mockWebSocket();
+    manager.addConnection('user-1', ws1);
+    manager.addConnection('user-2', ws2);
+
+    manager.close();
+
+    expect(ws1.close).toHaveBeenCalledWith(1001, 'Server shutting down');
+    expect(ws2.close).toHaveBeenCalledWith(1001, 'Server shutting down');
+    expect(manager.getConnectionCount('user-1')).toBe(0);
+    expect(manager.getConnectionCount('user-2')).toBe(0);
+  });
+
+  it('evicts oldest connection when per-user limit is reached', () => {
+    const sockets = Array.from({ length: 6 }, () => mockWebSocket());
+    for (const ws of sockets) {
+      manager.addConnection('user-1', ws);
+    }
+
+    // The first socket should have been evicted
+    expect(sockets[0].close).toHaveBeenCalledWith(4002, 'Connection limit exceeded');
+    expect(manager.getConnectionCount('user-1')).toBe(5);
   });
 });

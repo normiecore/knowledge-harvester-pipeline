@@ -25,6 +25,7 @@ export class SettingsStore {
   constructor(dbPath = 'settings.db') {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
 
     this.db.exec(`CREATE TABLE IF NOT EXISTS user_settings (
       user_id TEXT PRIMARY KEY,

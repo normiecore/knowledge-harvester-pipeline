@@ -111,31 +111,45 @@ export async function timelineRoutes(
       offset: 0,
     });
 
-    // Enrich engrams with source_metadata from MuninnDB
+    // Enrich engrams with source_metadata from MuninnDB.
+    // Fetch in parallel batches (max 10 concurrent) to avoid N+1 stalls.
     const vault = VaultManager.personalVault(effectiveUserId);
+    const BATCH_CONCURRENCY = 10;
     const enrichedEngrams: TimelineEngram[] = [];
 
-    for (const engram of result.engrams) {
-      let sourceMetadata: any = {};
-      try {
-        const detail = await muninnClient.read(vault, engram.id);
-        sourceMetadata = detail.metadata ?? {};
-      } catch {
-        // Engram might not exist in MuninnDB anymore
-      }
+    // Process in batches of BATCH_CONCURRENCY
+    for (let i = 0; i < result.engrams.length; i += BATCH_CONCURRENCY) {
+      const batch = result.engrams.slice(i, i + BATCH_CONCURRENCY);
+      const settled = await Promise.allSettled(
+        batch.map(async (engram) => {
+          let sourceMetadata: any = {};
+          try {
+            const detail = await muninnClient.read(vault, engram.id);
+            sourceMetadata = detail.metadata ?? {};
+          } catch {
+            // Engram might not exist in MuninnDB anymore
+          }
 
-      enrichedEngrams.push({
-        id: engram.id,
-        concept: engram.concept,
-        capturedAt: engram.capturedAt,
-        sourceType: engram.sourceType,
-        sourceApp: sourceMetadata.sourceApp ?? engram.sourceType,
-        confidence: engram.confidence,
-        appCategory: sourceMetadata.appCategory ?? 'other',
-        durationSeconds: sourceMetadata.durationSeconds ?? 0,
-        documentName: sourceMetadata.documentName ?? '',
-        tags: typeof engram.tags === 'string' ? engram.tags : (engram.tags ?? []).join(' '),
-      });
+          return {
+            id: engram.id,
+            concept: engram.concept,
+            capturedAt: engram.capturedAt,
+            sourceType: engram.sourceType,
+            sourceApp: sourceMetadata.sourceApp ?? engram.sourceType,
+            confidence: engram.confidence,
+            appCategory: sourceMetadata.appCategory ?? 'other',
+            durationSeconds: sourceMetadata.durationSeconds ?? 0,
+            documentName: sourceMetadata.documentName ?? '',
+            tags: typeof engram.tags === 'string' ? engram.tags : (engram.tags ?? []).join(' '),
+          } satisfies TimelineEngram;
+        }),
+      );
+
+      for (const result of settled) {
+        if (result.status === 'fulfilled') {
+          enrichedEngrams.push(result.value);
+        }
+      }
     }
 
     // Sort by captured_at ascending

@@ -41,8 +41,8 @@ export async function engramRoutes(
       confidence_max?: string;
       department?: string;
     };
-    const maxResults = parseInt(limit || '20', 10);
-    const offsetNum = parseInt(offset || '0', 10);
+    const maxResults = Math.min(200, Math.max(1, parseInt(limit || '20', 10) || 20));
+    const offsetNum = Math.max(0, parseInt(offset || '0', 10) || 0);
 
     // Check if any facet filters are active (beyond just status or q)
     const hasFacets = source || from || to || confidence_min || confidence_max || department || offset;
@@ -168,6 +168,11 @@ export async function engramRoutes(
       approval_status: 'approved' | 'dismissed';
     };
 
+    if (approval_status !== 'approved' && approval_status !== 'dismissed') {
+      reply.code(400);
+      return { error: 'approval_status must be "approved" or "dismissed"' };
+    }
+
     const vault = VM.personalVault(user.userId);
     const existing = await muninnClient.read(vault, id);
     const engram = JSON.parse(existing.content);
@@ -214,6 +219,12 @@ export async function engramRoutes(
     if (!Array.isArray(ids) || ids.length === 0) {
       reply.code(400);
       return { error: 'ids must be a non-empty array' };
+    }
+
+    const MAX_BULK_SIZE = 100;
+    if (ids.length > MAX_BULK_SIZE) {
+      reply.code(400);
+      return { error: `ids array must not exceed ${MAX_BULK_SIZE} items` };
     }
 
     if (action !== 'approve' && action !== 'dismiss') {

@@ -16,6 +16,7 @@ export class DeadLetterStore {
   constructor(dbPath = 'dead-letter.db') {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
     this.db.exec(`CREATE TABLE IF NOT EXISTS dead_letters (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       capture_id TEXT NOT NULL,

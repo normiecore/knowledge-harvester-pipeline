@@ -9,7 +9,8 @@
     "start": "node dist/src/main.js",
     "dev": "npx tsx src/main.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:load": "npx tsx tests/load/load-test.ts"
   },
   "keywords": [],
   "author": "",

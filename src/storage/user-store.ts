@@ -30,6 +30,7 @@ export class UserStore {
   constructor(dbPath = 'user-store.db') {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
 
     this.db.exec(`CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

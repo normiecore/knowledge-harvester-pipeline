@@ -6,37 +6,52 @@ import { PipelineMetrics } from '../../src/pipeline/metrics.js';
 import { ConcurrencyLimiter } from '../../src/pipeline/concurrency-limiter.js';
 import type { RawCapture } from '../../src/types.js';
 import { unlinkSync, existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
-const TEST_DBS = ['test-dedup.db', 'test-index.db', 'test-metrics.db'];
+function makeDbNames() {
+  const suffix = randomBytes(4).toString('hex');
+  return {
+    dedup: `test-dedup-${suffix}.db`,
+    index: `test-index-${suffix}.db`,
+    metrics: `test-metrics-${suffix}.db`,
+  };
+}
 
-function cleanup() {
-  for (const f of TEST_DBS) {
-    for (const suffix of ['', '-wal', '-shm']) {
-      const path = f + suffix;
-      if (existsSync(path)) unlinkSync(path);
+function cleanup(dbFiles: string[]) {
+  for (const f of dbFiles) {
+    for (const ext of ['', '-wal', '-shm']) {
+      const path = f + ext;
+      try {
+        if (existsSync(path)) unlinkSync(path);
+      } catch {
+        // Ignore EBUSY / EPERM — file still locked by prior SQLite handle
+      }
     }
   }
 }
 
 describe('Pipeline Integration', () => {
-  let deduplicator: Deduplicator;
-  let engramIndex: EngramIndex;
-  let metrics: PipelineMetrics;
+  let deduplicator: Deduplicator | undefined;
+  let engramIndex: EngramIndex | undefined;
+  let metrics: PipelineMetrics | undefined;
   let published: Array<{ topic: string; data: unknown }>;
+  let dbFiles: string[];
 
   beforeEach(() => {
-    cleanup();
-    deduplicator = new Deduplicator('test-dedup.db');
-    engramIndex = new EngramIndex('test-index.db');
-    metrics = new PipelineMetrics('test-metrics.db');
+    const dbs = makeDbNames();
+    dbFiles = [dbs.dedup, dbs.index, dbs.metrics];
+    cleanup(dbFiles);
+    deduplicator = new Deduplicator(dbs.dedup);
+    engramIndex = new EngramIndex(dbs.index);
+    metrics = new PipelineMetrics(dbs.metrics);
     published = [];
   });
 
   afterEach(() => {
-    deduplicator.close();
-    engramIndex.close();
-    metrics.close();
-    cleanup();
+    deduplicator?.close();
+    engramIndex?.close();
+    metrics?.close();
+    cleanup(dbFiles ?? []);
   });
 
   function makeCapture(overrides: Partial<RawCapture> = {}): RawCapture {

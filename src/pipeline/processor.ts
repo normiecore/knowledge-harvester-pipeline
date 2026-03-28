@@ -8,6 +8,7 @@ import type { EngramIndex } from '../storage/engram-index.js';
 import { ExtractionError } from '../types.js';
 import type { RawCapture } from '../types.js';
 import { topicForUser, TOPICS } from '../queue/topics.js';
+import { QueueFullError } from './concurrency-limiter.js';
 import type { ConcurrencyLimiter } from './concurrency-limiter.js';
 import type { PipelineMetrics } from './metrics.js';
 import type { OcrClient } from './ocr.js';
@@ -55,6 +56,15 @@ export class PipelineProcessor {
         ? await this.limiter.run(() => this.extractor.extract(capture))
         : await this.extractor.extract(capture);
     } catch (err: unknown) {
+      if (err instanceof QueueFullError) {
+        this.publishToNats(TOPICS.DEAD_LETTER, {
+          capture,
+          error: err.message,
+          failedAt: new Date().toISOString(),
+        });
+        this.metrics?.recordError();
+        return { action: 'error', reason: err.message };
+      }
       if (err instanceof ExtractionError) {
         // All retries exhausted — publish to dead-letter topic for later inspection
         this.publishToNats(TOPICS.DEAD_LETTER, {

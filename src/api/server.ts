@@ -114,7 +114,8 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     try {
       (req as any).user = await deps.authVerifier(authHeader);
     } catch (err: any) {
-      reply.code(401).send({ error: err.message });
+      req.log.debug({ err: err.message }, 'Auth verification failed');
+      reply.code(401).send({ error: 'Invalid or expired token' });
       return;
     }
   });

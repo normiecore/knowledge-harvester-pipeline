@@ -33,14 +33,17 @@ export async function auditRoutes(
       offset?: string;
     };
 
+    const parsedLimit = limit ? Math.min(500, Math.max(1, parseInt(limit, 10) || 50)) : undefined;
+    const parsedOffset = offset ? Math.max(0, parseInt(offset, 10) || 0) : undefined;
+
     return auditStore.query({
       userId,
       action,
       resourceType,
       from,
       to,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
+      limit: parsedLimit,
+      offset: parsedOffset,
     });
   });
 

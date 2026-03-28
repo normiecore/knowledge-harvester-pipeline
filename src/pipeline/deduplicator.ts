@@ -9,6 +9,7 @@ export class Deduplicator {
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS content_hashes (

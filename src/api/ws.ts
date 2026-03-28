@@ -51,6 +51,7 @@ export class WebSocketManager {
     const userConns = this.connections.get(userId);
     if (userConns) {
       userConns.delete(ws);
+      ws.removeAllListeners('pong');
       if (userConns.size === 0) {
         this.connections.delete(userId);
       }
@@ -107,6 +108,11 @@ export class WebSocketManager {
         }
       }
     }, PING_INTERVAL_MS);
+
+    // Allow the process to exit cleanly even if the ping loop is still active
+    if (this.pingTimer && typeof this.pingTimer === 'object' && 'unref' in this.pingTimer) {
+      (this.pingTimer as NodeJS.Timeout).unref();
+    }
   }
 
   /** Stop the ping loop and close all connections. Call on server shutdown. */

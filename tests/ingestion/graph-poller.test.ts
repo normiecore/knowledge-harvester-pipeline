@@ -241,4 +241,54 @@ describe('GraphPoller', () => {
     expect(todoPublished[0].rawContent).toContain('Work Tasks');
     expect(todoDelta.setDeltaLink).toHaveBeenCalledWith('user-1', 'todo', expect.any(String));
   });
+
+  it('follows @odata.nextLink pagination in pollTodoTasks', async () => {
+    const tasksPage1Url = '/users/user-1/todo/lists/list-1/tasks?$filter=lastModifiedDateTime gt 1970-01-01T00:00:00Z&$orderby=lastModifiedDateTime desc&$top=50';
+    const tasksPage2Url = 'https://graph.microsoft.com/v1.0/todo/tasks?page=2';
+
+    const todoClient = makeMockGraphClient({
+      '/users/user-1/todo/lists': {
+        value: [{ id: 'list-1', displayName: 'Work Tasks' }] satisfies GraphTodoTaskList[],
+      },
+      [tasksPage1Url]: {
+        '@odata.nextLink': tasksPage2Url,
+        value: [
+          {
+            id: 'task-1',
+            title: 'First page task',
+            body: { content: 'Task on page 1', contentType: 'text' },
+            status: 'notStarted',
+            importance: 'normal',
+            createdDateTime: '2026-03-27T08:00:00Z',
+            lastModifiedDateTime: '2026-03-27T09:00:00Z',
+          },
+        ] satisfies GraphTodoTask[],
+      },
+      [tasksPage2Url]: {
+        value: [
+          {
+            id: 'task-2',
+            title: 'Second page task',
+            body: { content: 'Task on page 2', contentType: 'text' },
+            status: 'completed',
+            importance: 'high',
+            createdDateTime: '2026-03-27T10:00:00Z',
+            lastModifiedDateTime: '2026-03-27T11:00:00Z',
+          },
+        ] satisfies GraphTodoTask[],
+      },
+    });
+    const todoDelta = makeMockDeltaStore();
+    const todoPublished: RawCapture[] = [];
+    const todoPoller = new GraphPoller(todoClient as any, todoDelta as any, (c) => { todoPublished.push(c); });
+
+    await todoPoller.pollTodoTasks('user-1', 'user1@co.com');
+
+    expect(todoPublished).toHaveLength(2);
+    expect(todoPublished[0].rawContent).toContain('First page task');
+    expect(todoPublished[1].rawContent).toContain('Second page task');
+    // Verify both pages were fetched
+    expect(todoClient.api).toHaveBeenCalledWith(tasksPage1Url);
+    expect(todoClient.api).toHaveBeenCalledWith(tasksPage2Url);
+  });
 });

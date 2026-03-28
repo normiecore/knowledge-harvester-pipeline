@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import type { EngramIndex } from '../../storage/engram-index.js';
+import type { EngramIndex, VaultQueryFilter } from '../../storage/engram-index.js';
 import { VaultManager } from '../../storage/vault-manager.js';
 
 interface VaultRoutesOpts extends FastifyPluginOptions {
@@ -28,12 +28,8 @@ function deriveVaults(engramIndex: EngramIndex): {
   department: VaultInfo[];
   org: VaultInfo[];
 } {
-  const db = (engramIndex as any).db;
-
   // Personal vaults — one per user_id
-  const userRows = db.prepare(
-    `SELECT user_id, COUNT(*) as count FROM engram_index GROUP BY user_id ORDER BY count DESC`,
-  ).all() as Array<{ user_id: string; count: number }>;
+  const userRows = engramIndex.getUserCounts();
 
   const personal: VaultInfo[] = userRows.map((r) => ({
     name: VaultManager.personalVault(r.user_id),
@@ -43,12 +39,7 @@ function deriveVaults(engramIndex: EngramIndex): {
   }));
 
   // Department vaults — one per department (excluding 'unassigned')
-  const deptRows = db.prepare(
-    `SELECT department, COUNT(*) as count
-     FROM engram_index
-     WHERE department != 'unassigned' AND approval_status = 'approved'
-     GROUP BY department ORDER BY count DESC`,
-  ).all() as Array<{ department: string; count: number }>;
+  const deptRows = engramIndex.getDepartmentCounts();
 
   const department: VaultInfo[] = deptRows.map((r) => ({
     name: VaultManager.deptVault(r.department),
@@ -58,16 +49,14 @@ function deriveVaults(engramIndex: EngramIndex): {
   }));
 
   // Org vault — all approved engrams
-  const orgRow = db.prepare(
-    `SELECT COUNT(*) as count FROM engram_index WHERE approval_status = 'approved'`,
-  ).get() as { count: number };
+  const orgCount = engramIndex.countApproved();
 
-  const org: VaultInfo[] = orgRow.count > 0
+  const org: VaultInfo[] = orgCount > 0
     ? [{
         name: VaultManager.orgVault(),
         type: 'org' as const,
         owner: 'organization',
-        engramCount: orgRow.count,
+        engramCount: orgCount,
       }]
     : [];
 
@@ -78,7 +67,7 @@ function deriveVaults(engramIndex: EngramIndex): {
  * Resolve a vault name to a WHERE clause for querying engram_index.
  * Returns [whereSql, params] or null if the vault name is unrecognised.
  */
-function vaultFilter(vaultName: string): { where: string; params: (string | number)[] } | null {
+function vaultFilter(vaultName: string): VaultQueryFilter | null {
   // Personal vault: knowledge-harvester-<userId>
   const personalPrefix = 'knowledge-harvester-';
   const deptPrefix = 'knowledge-harvester-dept-';
@@ -132,33 +121,11 @@ export async function vaultRoutes(
       return { error: 'Unknown vault' };
     }
 
-    const db = (engramIndex as any).db;
     const maxResults = parseInt(limit || '20', 10);
     const offsetNum = parseInt(offset || '0', 10);
 
-    let where = filter.where;
-    const params = [...filter.params];
-
-    if (q) {
-      where += ` AND (concept LIKE ? OR tags LIKE ?)`;
-      const like = `%${q}%`;
-      params.push(like, like);
-    }
-
-    const countRow = db.prepare(
-      `SELECT COUNT(*) AS cnt FROM engram_index WHERE ${where}`,
-    ).get(...params) as { cnt: number };
-
-    const engrams = db.prepare(
-      `SELECT id, user_id AS userId, concept, approval_status AS approvalStatus,
-        captured_at AS capturedAt, source_type AS sourceType, confidence, department
-      FROM engram_index
-      WHERE ${where}
-      ORDER BY captured_at DESC
-      LIMIT ? OFFSET ?`,
-    ).all(...params, maxResults, offsetNum);
-
-    return { engrams, total: countRow.cnt, limit: maxResults, offset: offsetNum };
+    const result = engramIndex.queryVaultEngrams(filter, q, maxResults, offsetNum);
+    return result;
   });
 
   // GET /api/vaults/:name/stats — count, top tags, date range
@@ -171,44 +138,6 @@ export async function vaultRoutes(
       return { error: 'Unknown vault' };
     }
 
-    const db = (engramIndex as any).db;
-    const { where, params } = filter;
-
-    const countRow = db.prepare(
-      `SELECT COUNT(*) AS cnt FROM engram_index WHERE ${where}`,
-    ).get(...params) as { cnt: number };
-
-    // Date range
-    const rangeRow = db.prepare(
-      `SELECT MIN(captured_at) AS earliest, MAX(captured_at) AS latest
-       FROM engram_index WHERE ${where}`,
-    ).get(...params) as { earliest: string | null; latest: string | null };
-
-    // Top tags
-    const tagRows = db.prepare(
-      `SELECT tags FROM engram_index WHERE ${where} AND tags != ''`,
-    ).all(...params) as Array<{ tags: string }>;
-
-    const tagCounts = new Map<string, number>();
-    for (const row of tagRows) {
-      const tags = row.tags.split(/\s+/).filter(Boolean);
-      for (const tag of tags) {
-        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
-      }
-    }
-
-    const topTags = [...tagCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([tag, count]) => ({ tag, count }));
-
-    return {
-      count: countRow.cnt,
-      topTags,
-      dateRange: {
-        earliest: rangeRow.earliest,
-        latest: rangeRow.latest,
-      },
-    };
+    return engramIndex.getVaultStats(filter);
   });
 }

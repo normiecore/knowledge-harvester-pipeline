@@ -18,12 +18,13 @@ export class UserCache {
 
   /** Replace the entire cache with a fresh user list from Graph API. */
   refresh(users: ReadonlyArray<GraphUser>): void {
-    this.cache.clear();
+    const next = new Map<string, CachedUserInfo>();
     for (const user of users) {
-      this.cache.set(user.id, {
+      next.set(user.id, {
         department: user.department ?? DEFAULT_DEPARTMENT,
       });
     }
+    this.cache = next;
   }
 
   /** Look up a single user's cached info. */

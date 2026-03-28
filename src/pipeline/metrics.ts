@@ -34,6 +34,7 @@ export class PipelineMetrics {
     if (dbPath) {
       this.db = new Database(dbPath);
       this.db.pragma('journal_mode = WAL');
+      this.db.pragma('busy_timeout = 5000');
       this.db.exec(`CREATE TABLE IF NOT EXISTS metrics (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
