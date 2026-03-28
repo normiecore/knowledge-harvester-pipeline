@@ -17,6 +17,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { docsRoutes } from './routes/docs.js';
 import { vaultRoutes } from './routes/vaults.js';
 import { digestRoutes } from './routes/digest.js';
+import { timelineRoutes } from './routes/timeline.js';
 import type { MuninnDBClient } from '../storage/muninndb-client.js';
 import type { VaultManager } from '../storage/vault-manager.js';
 import type { EngramIndex } from '../storage/engram-index.js';
@@ -183,6 +184,12 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
   // Digest generator
   await app.register(digestRoutes, {
     engramIndex: deps.engramIndex,
+  });
+
+  // Timeline
+  await app.register(timelineRoutes, {
+    engramIndex: deps.engramIndex,
+    muninnClient: deps.muninnClient,
   });
 
   // WebSocket endpoint

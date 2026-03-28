@@ -233,6 +233,14 @@ export async function getVaultStats(name: string): Promise<any> {
   return fetchAPI(`/api/vaults/${encodeURIComponent(name)}/stats`);
 }
 
+// Timeline
+export async function getTimeline(date?: string, userId?: string): Promise<any> {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  if (userId) params.set('userId', userId);
+  return fetchAPI(`/api/engrams/timeline?${params}`);
+}
+
 // Digest
 export async function getDigest(period: 'daily' | 'weekly'): Promise<any> {
   return fetchAPI(`/api/digest?period=${period}`);

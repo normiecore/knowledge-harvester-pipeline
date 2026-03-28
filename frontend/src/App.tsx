@@ -15,6 +15,7 @@ import EngramDetail from './pages/EngramDetail';
 import AuditLog from './pages/AuditLog';
 import Settings from './pages/Settings';
 import Vaults from './pages/Vaults';
+import Timeline from './pages/Timeline';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
@@ -77,6 +78,7 @@ export default function App() {
               <main className="main-content" id="main-content">
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/timeline" element={<Timeline />} />
                   <Route path="/queue" element={<Queue />} />
                   <Route path="/approved" element={<Approved />} />
                   <Route path="/search" element={<Search />} />

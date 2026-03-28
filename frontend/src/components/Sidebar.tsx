@@ -6,6 +6,7 @@ const THEME_KEY = 'harvester-theme';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '\u2302' },
+  { to: '/timeline', label: 'Timeline', icon: '\u23F1' },
   { to: '/queue', label: 'Queue', icon: '\u2709' },
   { to: '/approved', label: 'Approved', icon: '\u2713' },
   { to: '/search', label: 'Search', icon: '\u2315' },
