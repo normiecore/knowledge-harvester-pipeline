@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { getVaults, getVaultEngrams, getVaultStats } from '../api';
 
 interface VaultInfo {
@@ -45,21 +45,28 @@ export default function Vaults() {
   const [engramLoading, setEngramLoading] = useState(false);
   const [stats, setStats] = useState<VaultStatsData | null>(null);
 
+  const [engramError, setEngramError] = useState<string | null>(null);
+
   const PAGE_SIZE = 20;
 
-  useEffect(() => {
+  const loadVaults = useCallback(() => {
     setLoading(true);
+    setError(null);
+    setVaults(null);
     getVaults()
       .then(setVaults)
       .catch((err) => setError(err?.message || 'Failed to load vaults'))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => { loadVaults(); }, [loadVaults]);
+
   const selectVault = async (vault: VaultInfo) => {
     setSelectedVault(vault);
     setEngramOffset(0);
     setEngramSearch('');
     setEngramLoading(true);
+    setEngramError(null);
 
     try {
       const [engramData, statsData] = await Promise.all([
@@ -73,6 +80,7 @@ export default function Vaults() {
       setEngrams([]);
       setEngramTotal(0);
       setStats(null);
+      setEngramError('Failed to load vault contents. Check your connection and try again.');
     } finally {
       setEngramLoading(false);
     }
@@ -81,13 +89,15 @@ export default function Vaults() {
   const loadPage = async (newOffset: number) => {
     if (!selectedVault) return;
     setEngramLoading(true);
+    setEngramError(null);
     setEngramOffset(newOffset);
     try {
       const data = await getVaultEngrams(selectedVault.name, PAGE_SIZE, newOffset, engramSearch || undefined);
       setEngrams(data.engrams);
       setEngramTotal(data.total);
     } catch {
-      // keep current
+      setEngrams([]);
+      setEngramError('Failed to load engrams. Check your connection and try again.');
     } finally {
       setEngramLoading(false);
     }
@@ -97,13 +107,15 @@ export default function Vaults() {
     e.preventDefault();
     if (!selectedVault) return;
     setEngramLoading(true);
+    setEngramError(null);
     setEngramOffset(0);
     try {
       const data = await getVaultEngrams(selectedVault.name, PAGE_SIZE, 0, engramSearch || undefined);
       setEngrams(data.engrams);
       setEngramTotal(data.total);
     } catch {
-      // keep current
+      setEngrams([]);
+      setEngramError('Search failed. Check your connection and try again.');
     } finally {
       setEngramLoading(false);
     }
@@ -123,6 +135,7 @@ export default function Vaults() {
       <div className="page">
         <div className="error-state">
           <p>{error}</p>
+          <button className="btn-retry" onClick={loadVaults}>Retry</button>
         </div>
       </div>
     );
@@ -156,13 +169,20 @@ export default function Vaults() {
               <button className="btn-search" type="submit">Search</button>
             </form>
 
-            {engramLoading ? (
+            {engramError && (
+              <div className="error-state">
+                <p>{engramError}</p>
+                <button className="btn-retry" onClick={() => selectedVault && selectVault(selectedVault)}>Retry</button>
+              </div>
+            )}
+
+            {!engramError && engramLoading ? (
               <div className="page-loading">
                 <div className="spinner" />
               </div>
-            ) : engrams.length === 0 ? (
+            ) : !engramError && engrams.length === 0 ? (
               <div className="empty-state">No engrams found</div>
-            ) : (
+            ) : !engramError ? (
               <>
                 <div className="engram-list">
                   {engrams.map((e) => {
@@ -208,7 +228,7 @@ export default function Vaults() {
                   </div>
                 )}
               </>
-            )}
+            ) : null}
           </div>
 
           {stats && (

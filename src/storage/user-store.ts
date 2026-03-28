@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import type BetterSqlite3 from 'better-sqlite3';
+import type { UserEngramStats } from './engram-index.js';
 
 export interface UserRow {
   id: string;
@@ -145,19 +146,10 @@ export class UserStore {
   }
 
   /**
-   * Recalculate stats for a user from the engram_index database.
-   * Accepts an external better-sqlite3 database handle pointing to engram-index.db.
+   * Persist pre-computed engram stats for a user.
+   * Accepts a stats object (from EngramIndex.getUserStatsData) instead of a raw DB handle.
    */
-  updateStats(userId: string, engramDb: BetterSqlite3.Database): void {
-    const row = engramDb.prepare(
-      `SELECT
-        COUNT(*) AS totalCaptures,
-        SUM(CASE WHEN approval_status = 'approved' THEN 1 ELSE 0 END) AS totalApproved,
-        SUM(CASE WHEN approval_status = 'dismissed' THEN 1 ELSE 0 END) AS totalDismissed,
-        MAX(captured_at) AS lastCaptureAt
-       FROM engram_index WHERE user_id = ?`,
-    ).get(userId) as { totalCaptures: number; totalApproved: number; totalDismissed: number; lastCaptureAt: string | null };
-
+  updateStats(userId: string, stats: UserEngramStats): void {
     this.db.prepare(
       `INSERT INTO user_stats (user_id, total_captures, total_approved, total_dismissed, last_capture_at)
        VALUES (?, ?, ?, ?, ?)
@@ -166,7 +158,7 @@ export class UserStore {
          total_approved = excluded.total_approved,
          total_dismissed = excluded.total_dismissed,
          last_capture_at = excluded.last_capture_at`,
-    ).run(userId, row.totalCaptures, row.totalApproved, row.totalDismissed, row.lastCaptureAt);
+    ).run(userId, stats.totalCaptures, stats.totalApproved, stats.totalDismissed, stats.lastCaptureAt);
   }
 
   getDepartments(): Array<{ department: string; count: number }> {

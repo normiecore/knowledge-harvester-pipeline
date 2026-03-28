@@ -51,7 +51,7 @@ export class WebSocketManager {
     const userConns = this.connections.get(userId);
     if (userConns) {
       userConns.delete(ws);
-      ws.removeAllListeners('pong');
+      ws.removeAllListeners();
       if (userConns.size === 0) {
         this.connections.delete(userId);
       }

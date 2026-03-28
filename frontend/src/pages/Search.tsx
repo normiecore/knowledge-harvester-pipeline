@@ -71,7 +71,8 @@ export default function Search() {
       setTotal(data.total ?? (data.engrams || []).length);
       setPage(pageNum);
     } catch (err) {
-      console.error('Search failed:', err);
+      setResults([]);
+      setTotal(0);
       setError('Search failed. Check your connection and try again.');
     }
     setSearched(true);
@@ -234,6 +235,7 @@ export default function Search() {
       {error && (
         <div className="error-state">
           <p>{error}</p>
+          <button className="btn-retry" onClick={() => executeSearch(page)}>Retry</button>
         </div>
       )}
 

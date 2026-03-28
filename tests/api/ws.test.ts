@@ -75,12 +75,12 @@ describe('WebSocketManager', () => {
     manager.notify('nonexistent', { type: 'test' });
   });
 
-  it('removes pong listener on disconnect', () => {
+  it('removes all listeners on disconnect', () => {
     const ws = mockWebSocket();
     manager.addConnection('user-1', ws);
     manager.removeConnection('user-1', ws);
 
-    expect(ws.removeAllListeners).toHaveBeenCalledWith('pong');
+    expect(ws.removeAllListeners).toHaveBeenCalledWith();
     expect(manager.getConnectionCount('user-1')).toBe(0);
   });
 

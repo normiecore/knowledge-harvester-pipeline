@@ -35,7 +35,9 @@ export class NatsClient {
             break;
         }
       }
-    })();
+    })().catch((err) => {
+      logger.error({ err }, 'NATS status monitor error');
+    });
   }
 
   async disconnect(): Promise<void> {

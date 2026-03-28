@@ -136,41 +136,21 @@ describe('UserStore', () => {
 
   // --- updateStats ---
 
-  it('updateStats calculates stats from an external engram database', () => {
+  it('updateStats persists pre-computed stats for a user', () => {
     store.upsert({ id: 'u1' });
 
-    // Create a temporary engram database to simulate EngramIndex
-    const engramDbPath = join(tmpdir(), `engram-stats-test-${randomUUID()}.db`);
-    const engramDb = new Database(engramDbPath);
-    engramDb.exec(`CREATE TABLE engram_index (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      concept TEXT NOT NULL,
-      approval_status TEXT NOT NULL DEFAULT 'pending',
-      captured_at TEXT NOT NULL,
-      source_type TEXT NOT NULL,
-      confidence REAL NOT NULL
-    )`);
-    engramDb.prepare(
-      `INSERT INTO engram_index VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run('e1', 'u1', 'Test 1', 'approved', '2026-03-27T10:00:00Z', 'graph_email', 0.9);
-    engramDb.prepare(
-      `INSERT INTO engram_index VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run('e2', 'u1', 'Test 2', 'dismissed', '2026-03-27T11:00:00Z', 'graph_teams', 0.7);
-    engramDb.prepare(
-      `INSERT INTO engram_index VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run('e3', 'u1', 'Test 3', 'pending', '2026-03-27T12:00:00Z', 'desktop_window', 0.5);
-
-    store.updateStats('u1', engramDb);
-    engramDb.close();
+    store.updateStats('u1', {
+      totalCaptures: 3,
+      totalApproved: 1,
+      totalDismissed: 1,
+      lastCaptureAt: '2026-03-27T12:00:00Z',
+    });
 
     const stats = store.getStats('u1');
     expect(stats.totalCaptures).toBe(3);
     expect(stats.totalApproved).toBe(1);
     expect(stats.totalDismissed).toBe(1);
     expect(stats.lastCaptureAt).toBe('2026-03-27T12:00:00Z');
-
-    cleanupDb(engramDbPath);
   });
 
   // --- getAllWithStats ---

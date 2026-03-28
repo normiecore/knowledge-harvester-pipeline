@@ -25,7 +25,6 @@ export default function Queue() {
       setEngrams(items);
       setSelected(new Set());
     } catch (err) {
-      console.error('Failed to load engrams:', err);
       setError('Failed to load engrams. Check your connection and try again.');
     }
     setLoading(false);
@@ -92,7 +91,6 @@ export default function Queue() {
       });
       addToast('success', `Engram ${status}`, target.concept || 'Engram updated successfully.');
     } catch (err) {
-      console.error('Action failed:', err);
       addToast('error', 'Action failed', 'Could not update the engram. Try again.');
     }
   }, [engrams, focusIndex, addToast]);

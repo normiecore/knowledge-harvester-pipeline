@@ -18,7 +18,6 @@ export default function Approved() {
       const data = await getEngrams('approved');
       setEngrams(data.engrams || []);
     } catch (err) {
-      console.error('Failed to load approved engrams:', err);
       setError('Failed to load approved engrams. Check your connection and try again.');
     }
     setLoading(false);

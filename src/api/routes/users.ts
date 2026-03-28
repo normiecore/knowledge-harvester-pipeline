@@ -139,9 +139,8 @@ export async function userRoutes(
       return { error: 'User not found' };
     }
 
-    // Access the underlying better-sqlite3 database from EngramIndex
-    const engramDb = (engramIndex as any).db;
-    userStore.updateStats(id, engramDb);
+    const stats_data = engramIndex.getUserStatsData(id);
+    userStore.updateStats(id, stats_data);
 
     const stats = userStore.getStats(id);
     return { stats };

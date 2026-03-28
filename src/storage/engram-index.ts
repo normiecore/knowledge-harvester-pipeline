@@ -74,6 +74,14 @@ export interface DepartmentCountRow {
   count: number;
 }
 
+/** Aggregated user stats computed from engram_index */
+export interface UserEngramStats {
+  totalCaptures: number;
+  totalApproved: number;
+  totalDismissed: number;
+  lastCaptureAt: string | null;
+}
+
 /** Date range result */
 export interface DateRangeResult {
   earliest: string | null;
@@ -515,6 +523,19 @@ export class EngramIndex {
         latest: rangeRow.latest,
       },
     };
+  }
+
+  /** Aggregate capture stats for a single user (used by user-store sync). */
+  getUserStatsData(userId: string): UserEngramStats {
+    const row = this.db.prepare(
+      `SELECT
+        COUNT(*) AS totalCaptures,
+        SUM(CASE WHEN approval_status = 'approved' THEN 1 ELSE 0 END) AS totalApproved,
+        SUM(CASE WHEN approval_status = 'dismissed' THEN 1 ELSE 0 END) AS totalDismissed,
+        MAX(captured_at) AS lastCaptureAt
+       FROM engram_index WHERE user_id = ?`,
+    ).get(userId) as UserEngramStats;
+    return row;
   }
 
   updateStatus(id: string, status: string): void {

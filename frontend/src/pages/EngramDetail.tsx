@@ -65,7 +65,6 @@ export default function EngramDetail() {
       const data = await getEngramDetail(id);
       setEngram(data);
     } catch (err) {
-      console.error('Failed to load engram:', err);
       setError('Failed to load engram detail. Check your connection and try again.');
     }
     setLoading(false);
@@ -88,7 +87,6 @@ export default function EngramDetail() {
       // Refresh data to reflect new status
       await loadEngram();
     } catch (err: any) {
-      console.error('Action failed:', err);
       addToast('error', 'Action failed', err?.message);
     }
     setActionLoading(false);

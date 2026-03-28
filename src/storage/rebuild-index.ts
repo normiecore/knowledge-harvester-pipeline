@@ -17,6 +17,9 @@ import type { HarvesterEngram } from '../types.js';
  * @param userIds      - List of user IDs whose vaults should be synced.
  *                       If empty, skips rebuild (no users to sync).
  */
+/** Maximum number of user vaults to sync concurrently. */
+const REBUILD_CONCURRENCY = 5;
+
 export async function rebuildIndex(
   muninnClient: MuninnDBClient,
   engramIndex: EngramIndex,
@@ -25,7 +28,10 @@ export async function rebuildIndex(
   let synced = 0;
   let errors = 0;
 
-  for (const userId of userIds) {
+  /** Process a single user vault: list engrams, parse, and upsert into local index. */
+  async function syncVault(userId: string): Promise<{ synced: number; errors: number }> {
+    let vaultSynced = 0;
+    let vaultErrors = 0;
     const vault = VaultManager.personalVault(userId);
 
     try {
@@ -44,15 +50,33 @@ export async function rebuildIndex(
             confidence: engram.confidence,
             tags: engram.tags,
           });
-          synced++;
+          vaultSynced++;
         } catch (err) {
           logger.warn({ engramId: raw.id, vault, err }, 'Failed to parse/index engram');
-          errors++;
+          vaultErrors++;
         }
       }
     } catch (err) {
       logger.warn({ vault, err }, 'Failed to list engrams from vault');
-      errors++;
+      vaultErrors++;
+    }
+
+    return { synced: vaultSynced, errors: vaultErrors };
+  }
+
+  // Process user vaults in concurrent batches
+  for (let i = 0; i < userIds.length; i += REBUILD_CONCURRENCY) {
+    const batch = userIds.slice(i, i + REBUILD_CONCURRENCY);
+    const results = await Promise.allSettled(batch.map((uid) => syncVault(uid)));
+
+    for (const outcome of results) {
+      if (outcome.status === 'fulfilled') {
+        synced += outcome.value.synced;
+        errors += outcome.value.errors;
+      } else {
+        logger.warn({ err: outcome.reason }, 'Vault sync failed unexpectedly');
+        errors++;
+      }
     }
   }
 

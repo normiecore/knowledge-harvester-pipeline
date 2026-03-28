@@ -101,9 +101,12 @@ export class MuninnDBClient {
     return this.request('/read', { vault, id });
   }
 
+  /** Maximum number of concurrent read requests in a single batch. */
+  static readonly LIST_ALL_BATCH_SIZE = 10;
+
   /**
-   * List all engrams in a vault. Uses recall with a broad context
-   * and paginates to retrieve everything available.
+   * List all engrams in a vault. Uses recall with a broad context,
+   * then fetches full engram data in parallel batches.
    */
   async listAll(
     vault: string,
@@ -111,13 +114,25 @@ export class MuninnDBClient {
     // Recall with broad context to get all engram IDs
     const result = await this.recall(vault, '*');
     const engrams: Array<{ id: string; concept: string; content: string }> = [];
+    const entries = result.engrams;
 
-    for (const entry of result.engrams) {
-      try {
-        const full = await this.read(vault, entry.id);
-        engrams.push(full);
-      } catch (err) {
-        logger.warn({ engramId: entry.id, vault, err }, 'Failed to read engram');
+    // Process reads in parallel batches to avoid sequential N+1 calls
+    for (let i = 0; i < entries.length; i += MuninnDBClient.LIST_ALL_BATCH_SIZE) {
+      const batch = entries.slice(i, i + MuninnDBClient.LIST_ALL_BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map((entry) => this.read(vault, entry.id)),
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        const outcome = results[j];
+        if (outcome.status === 'fulfilled') {
+          engrams.push(outcome.value);
+        } else {
+          logger.warn(
+            { engramId: batch[j].id, vault, err: outcome.reason },
+            'Failed to read engram during batch fetch',
+          );
+        }
       }
     }
 
