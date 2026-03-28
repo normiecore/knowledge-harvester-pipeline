@@ -56,7 +56,7 @@ async function checkUrl(url: string): Promise<boolean> {
 }
 
 export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: logger.child({ component: 'fastify' }) });
+  const app = Fastify({ loggerInstance: logger.child({ component: 'fastify' }) });
 
   await app.register(fastifyWebsocket);
 

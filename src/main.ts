@@ -61,11 +61,17 @@ async function main(): Promise<void> {
   logger.info('Connected to NATS');
 
   // Graph client + DeltaStore
-  const graphClient = createGraphClient({
-    tenantId: config.azure.tenantId,
-    clientId: config.azure.clientId,
-    clientSecret: config.azure.clientSecret,
-  });
+  const hasAzureCreds = config.azure.tenantId && config.azure.clientId && config.azure.clientSecret;
+  const graphClient = hasAzureCreds
+    ? createGraphClient({
+        tenantId: config.azure.tenantId,
+        clientId: config.azure.clientId,
+        clientSecret: config.azure.clientSecret,
+      })
+    : null;
+  if (!graphClient) {
+    logger.warn('Azure AD credentials not configured — Graph API polling disabled');
+  }
   const deltaStore = new DeltaStore('delta-state.db');
 
   // OpenAI client for LLM extraction
@@ -95,7 +101,7 @@ async function main(): Promise<void> {
     logger.info('Rebuilding local engram index from MuninnDB...');
     try {
       // Fetch user list from Graph API to know which vaults to sync
-      const allUsers = await fetchAllUsers(graphClient, 'id');
+      const allUsers = graphClient ? await fetchAllUsers(graphClient, 'id') : [];
       const userIds: string[] = allUsers.map((u) => u.id);
 
       const result = await rebuildIndex(muninnClient, engramIndex, userIds);
@@ -188,71 +194,71 @@ async function main(): Promise<void> {
     }
   });
 
-  // Graph poller
-  const graphPoller = new GraphPoller(graphClient, deltaStore, (capture) => {
-    nats.publish(TOPICS.RAW_CAPTURES, capture);
-  });
-
-  // Concurrency limiter for parallel user polling (separate from extraction limiter)
+  // Graph poller + poll loop (only when Azure AD is configured)
+  let graphPoller: GraphPoller | null = null;
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
   const pollLimiter = new ConcurrencyLimiter(MAX_POLL_CONCURRENCY);
 
-  // Real poll loop: fetch users from Graph API and poll mail + teams in parallel
-  const pollInterval = setInterval(async () => {
-    try {
-      const users = await fetchAllUsers(
-        graphClient,
-        'id,displayName,mail,userPrincipalName,department',
-      );
+  if (graphClient) {
+    graphPoller = new GraphPoller(graphClient, deltaStore, (capture) => {
+      nats.publish(TOPICS.RAW_CAPTURES, capture);
+    });
 
-      // Refresh the user cache with the latest Azure AD profiles
-      userCache.refresh(users);
+    pollInterval = setInterval(async () => {
+      try {
+        const users = await fetchAllUsers(
+          graphClient,
+          'id,displayName,mail,userPrincipalName,department',
+        );
 
-      // Poll each user concurrently, bounded by pollLimiter
-      const tasks = users.map((user) =>
-        pollLimiter.run(async () => {
-          const email = user.mail || user.userPrincipalName;
-          if (!email) return;
+        userCache.refresh(users);
 
-          try {
-            await graphPoller.pollMail(user.id, email);
-          } catch (err) {
-            logger.error({ userId: user.id, err }, 'Failed to poll mail');
-          }
+        const tasks = users.map((user) =>
+          pollLimiter.run(async () => {
+            const email = user.mail || user.userPrincipalName;
+            if (!email) return;
 
-          try {
-            await graphPoller.pollTeamsChat(user.id, email);
-          } catch (err) {
-            logger.error({ userId: user.id, err }, 'Failed to poll teams');
-          }
+            try {
+              await graphPoller!.pollMail(user.id, email);
+            } catch (err) {
+              logger.error({ userId: user.id, err }, 'Failed to poll mail');
+            }
 
-          try {
-            await graphPoller.pollCalendar(user.id, email);
-          } catch (err) {
-            logger.error({ userId: user.id, err }, 'Failed to poll calendar');
-          }
+            try {
+              await graphPoller!.pollTeamsChat(user.id, email);
+            } catch (err) {
+              logger.error({ userId: user.id, err }, 'Failed to poll teams');
+            }
 
-          try {
-            await graphPoller.pollTodoTasks(user.id, email);
-          } catch (err) {
-            logger.error({ userId: user.id, err }, 'Failed to poll todo tasks');
-          }
+            try {
+              await graphPoller!.pollCalendar(user.id, email);
+            } catch (err) {
+              logger.error({ userId: user.id, err }, 'Failed to poll calendar');
+            }
 
-          try {
-            await graphPoller.pollOneDrive(user.id, email);
-          } catch (err) {
-            logger.error({ userId: user.id, err }, 'Failed to poll onedrive');
-          }
-        }),
-      );
+            try {
+              await graphPoller!.pollTodoTasks(user.id, email);
+            } catch (err) {
+              logger.error({ userId: user.id, err }, 'Failed to poll todo tasks');
+            }
 
-      await Promise.all(tasks);
+            try {
+              await graphPoller!.pollOneDrive(user.id, email);
+            } catch (err) {
+              logger.error({ userId: user.id, err }, 'Failed to poll onedrive');
+            }
+          }),
+        );
 
-      metrics.recordPoll();
-      logger.info({ userCount: users.length }, 'Poll cycle complete');
-    } catch (err) {
-      logger.error({ err }, 'Poll error');
-    }
-  }, config.pollIntervalMs);
+        await Promise.all(tasks);
+
+        metrics.recordPoll();
+        logger.info({ userCount: users.length }, 'Poll cycle complete');
+      } catch (err) {
+        logger.error({ err }, 'Poll error');
+      }
+    }, config.pollIntervalMs);
+  }
 
   // Purge dismissed engrams older than 30 days — run on startup, then every 24h
   const PURGE_DISMISSED_DAYS = 30;
@@ -311,7 +317,7 @@ async function main(): Promise<void> {
   // Graceful shutdown
   const shutdown = async () => {
     logger.info('Shutting down...');
-    clearInterval(pollInterval);
+    if (pollInterval) clearInterval(pollInterval);
     clearInterval(purgeInterval);
     wsManager.close();
     await server.close();
@@ -332,10 +338,10 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   // Keep reference to graphPoller to avoid GC
-  (globalThis as any).__graphPoller = graphPoller;
+  if (graphPoller) (globalThis as any).__graphPoller = graphPoller;
 }
 
 main().catch((err) => {
-  logger.error('Fatal error:', err);
+  logger.error({ err }, 'Fatal error');
   process.exit(1);
 });
